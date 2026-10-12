@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 
-export default function LoginPage() {
+function LoginFormContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const redirectParam = searchParams.get('redirect')
@@ -48,13 +48,21 @@ export default function LoginPage() {
       })
       const data = await res.json()
 
-      const target = redirectParam || data.redirectTo || (
-        role === 'ADMIN'
-          ? '/admin'
-          : role === 'PHOTOGRAPHER'
-          ? '/photographer/dashboard'
-          : '/customer/dashboard'
-      )
+      let target = redirectParam || data?.redirectTo
+      if (target) {
+        if (role === 'CUSTOMER' && (target.startsWith('/photographer/') || target === '/photographer' || target.startsWith('/admin'))) {
+          target = '/customer/dashboard'
+        } else if (role === 'PHOTOGRAPHER' && target.startsWith('/admin')) {
+          target = '/photographer/dashboard'
+        }
+      } else {
+        target =
+          role === 'ADMIN'
+            ? '/admin'
+            : role === 'PHOTOGRAPHER'
+            ? '/photographer/dashboard'
+            : '/customer/dashboard'
+      }
 
       setSuccessMsg(`Đăng nhập thành công với vai trò ${role}! Đang chuyển hướng...`)
       setTimeout(() => {
@@ -283,3 +291,18 @@ export default function LoginPage() {
     </div>
   )
 }
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <LoginFormContent />
+    </Suspense>
+  )
+}
+

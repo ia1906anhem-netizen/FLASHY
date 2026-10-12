@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   MessageSquare,
@@ -62,7 +62,15 @@ const DEMO_CONVERSATIONS = [
   },
 ]
 
-const DEMO_MESSAGES = {
+interface MessageItem {
+  id: string
+  role: 'customer' | 'photographer'
+  text: string
+  time: string
+  read: boolean
+}
+
+const DEMO_MESSAGES: Record<string, MessageItem[]> = {
   c1: [
     { id: 'm1', role: 'customer', text: 'Anh ơi cho em hỏi, mình mặc gì đi chụp ạ?', time: new Date(Date.now() - 30 * 60000).toISOString(), read: true },
     { id: 'm2', role: 'photographer', text: 'Bạn mặc màu tươi sáng hoặc pastel là đẹp nhất nhé! Tránh kẻ sọc nhỏ và họa tiết quá rối.', time: new Date(Date.now() - 25 * 60000).toISOString(), read: true },
@@ -78,36 +86,166 @@ const DEMO_MESSAGES = {
   ],
 }
 
-type ConvId = keyof typeof DEMO_MESSAGES
+interface ConversationDisplay {
+  id: string
+  customer: {
+    name: string
+    avatar: string
+  }
+  booking_ref: string
+  package: string
+  last_message: string
+  last_message_time: string
+  unread: number
+  shoot_date: string
+  isSyncedThread?: boolean
+}
 
 export default function PhotographerMessagesPage() {
-  const [selectedConv, setSelectedConv] = useState<string | null>(null)
-  const [messages, setMessages] = useState(DEMO_MESSAGES)
+  const [conversations, setConversations] = useState<ConversationDisplay[]>(DEMO_CONVERSATIONS)
+  const [selectedConv, setSelectedConv] = useState<string | null>(DEMO_CONVERSATIONS[0].id)
+  const [messages, setMessages] = useState<Record<string, MessageItem[]>>(DEMO_MESSAGES)
   const [draft, setDraft] = useState('')
   const [search, setSearch] = useState('')
 
-  const conv = selectedConv ? DEMO_CONVERSATIONS.find(c => c.id === selectedConv) : null
-  const convMessages = selectedConv ? (messages[selectedConv as ConvId] || []) : []
+  // Load and sync conversations from localStorage and listen to real-time events
+  useEffect(() => {
+    const syncFromStorage = () => {
+      try {
+        const savedThreads = localStorage.getItem('flashy_chat_threads_v1')
+        let syncedList: ConversationDisplay[] = [...DEMO_CONVERSATIONS]
+        let syncedMsgMap: Record<string, MessageItem[]> = { ...DEMO_MESSAGES }
 
-  const filtered = DEMO_CONVERSATIONS.filter(c =>
+        const photoMsgs = localStorage.getItem('flashy_photographer_msgs_v1')
+        if (photoMsgs) {
+          try {
+            const parsedPhotoMsgs = JSON.parse(photoMsgs)
+            syncedMsgMap = { ...syncedMsgMap, ...parsedPhotoMsgs }
+          } catch {}
+        }
+
+        if (savedThreads) {
+          const parsedThreads = JSON.parse(savedThreads)
+          if (Array.isArray(parsedThreads) && parsedThreads.length > 0) {
+            const formattedFromCustomer: ConversationDisplay[] = parsedThreads.map((t: any) => ({
+              id: t.id,
+              customer: {
+                name: 'Thu Trang (Khách đặt)',
+                avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=60&h=60&fit=crop',
+              },
+              booking_ref: t.bookingId || 'BK-892104',
+              package: t.packageName || 'Vibe Sài Gòn',
+              last_message: t.lastMessage || 'Chào bạn!',
+              last_message_time: new Date().toISOString(),
+              unread: 0,
+              shoot_date: 'Hôm nay',
+              isSyncedThread: true,
+            }))
+
+            parsedThreads.forEach((t: any) => {
+              if (Array.isArray(t.messages)) {
+                syncedMsgMap[t.id] = t.messages.map((m: any) => ({
+                  id: m.id,
+                  role: m.sender === 'photographer' ? 'photographer' : 'customer',
+                  text: m.text,
+                  time: new Date().toISOString(),
+                  read: true,
+                }))
+              }
+            })
+
+            syncedList = [
+              ...formattedFromCustomer,
+              ...DEMO_CONVERSATIONS.filter(dc => !formattedFromCustomer.some(sc => sc.id === dc.id)),
+            ]
+          }
+        }
+
+        setConversations(syncedList)
+        setMessages(syncedMsgMap)
+      } catch {}
+    }
+
+    syncFromStorage()
+    window.addEventListener('storage', syncFromStorage)
+    window.addEventListener('flashy_chat_updated', syncFromStorage)
+    return () => {
+      window.removeEventListener('storage', syncFromStorage)
+      window.removeEventListener('flashy_chat_updated', syncFromStorage)
+    }
+  }, [])
+
+  const conv = selectedConv ? conversations.find(c => c.id === selectedConv) : null
+  const convMessages = selectedConv ? (messages[selectedConv] || []) : []
+
+  const filtered = conversations.filter(c =>
     c.customer.name.toLowerCase().includes(search.toLowerCase()) ||
     c.booking_ref.toLowerCase().includes(search.toLowerCase())
   )
 
-  const handleSend = () => {
-    if (!draft.trim() || !selectedConv) return
-    const newMsg = {
+  const handleSend = (overrideText?: string) => {
+    const textToSend = overrideText || draft.trim()
+    if (!textToSend || !selectedConv) return
+    const newMsg: MessageItem = {
       id: `m${Date.now()}`,
       role: 'photographer',
-      text: draft.trim(),
+      text: textToSend,
       time: new Date().toISOString(),
       read: true,
     }
-    setMessages(prev => ({
-      ...prev,
-      [selectedConv]: [...(prev[selectedConv as ConvId] || []), newMsg],
-    }))
+
+    setMessages(prev => {
+      const updated = {
+        ...prev,
+        [selectedConv]: [...(prev[selectedConv] || []), newMsg],
+      }
+      try {
+        localStorage.setItem('flashy_photographer_msgs_v1', JSON.stringify(updated))
+      } catch {}
+      return updated
+    })
+
+    setConversations(prev =>
+      prev.map(c =>
+        c.id === selectedConv
+          ? { ...c, last_message: textToSend, last_message_time: new Date().toISOString() }
+          : c
+      )
+    )
+
+    // Sync back to customer threads
+    try {
+      const savedThreads = localStorage.getItem('flashy_chat_threads_v1')
+      if (savedThreads) {
+        const parsedThreads = JSON.parse(savedThreads)
+        if (Array.isArray(parsedThreads)) {
+          const updatedThreads = parsedThreads.map((t: any) => {
+            if (t.id === selectedConv) {
+              return {
+                ...t,
+                lastMessage: textToSend,
+                lastTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                messages: [
+                  ...(t.messages || []),
+                  {
+                    id: `m-${Date.now()}`,
+                    sender: 'photographer',
+                    text: textToSend,
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  },
+                ],
+              }
+            }
+            return t
+          })
+          localStorage.setItem('flashy_chat_threads_v1', JSON.stringify(updatedThreads))
+          window.dispatchEvent(new Event('flashy_chat_updated'))
+        }
+      }
+    } catch {}
+
     setDraft('')
+    toast.success('Đã gửi tin nhắn đến khách hàng')
   }
 
   return (
@@ -240,6 +378,25 @@ export default function PhotographerMessagesPage() {
             ))}
           </div>
 
+          {/* Quick Replies for Photographer */}
+          <div className="px-4 py-2 bg-slate-50 border-t border-slate-100 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap">Trả lời nhanh:</span>
+            {[
+              'Dạ mình đã chuẩn bị thiết bị xong, hẹn gặp bạn đúng giờ nhé! 📸',
+              'Em gửi bạn trước vài góc chụp tham khảo nha!',
+              'Ảnh đang được hoàn thiện màu, sẽ gửi bạn đúng hạn 48h ạ.'
+            ].map((quick, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => handleSend(quick)}
+                className="px-2.5 py-1 text-[11px] rounded-full bg-white border border-slate-200 hover:border-violet-400 hover:text-violet-700 text-slate-600 transition-all whitespace-nowrap"
+              >
+                {quick}
+              </button>
+            ))}
+          </div>
+
           {/* Input */}
           <div className="bg-white border-t border-slate-200 p-3 flex items-center gap-2">
             <Button
@@ -258,7 +415,7 @@ export default function PhotographerMessagesPage() {
               className="flex-1 text-sm"
             />
             <Button
-              onClick={handleSend}
+              onClick={() => handleSend()}
               disabled={!draft.trim()}
               size="sm"
               className="w-9 h-9 p-0 flex-shrink-0 bg-violet-600 hover:bg-violet-700 text-white"

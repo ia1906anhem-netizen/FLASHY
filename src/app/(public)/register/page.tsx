@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Camera, Lock, Mail, User, Phone, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react'
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 
-export default function RegisterPage() {
+function RegisterFormContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const initialRole = searchParams?.get('role') === 'photographer' ? 'PHOTOGRAPHER' : 'CUSTOMER'
@@ -42,23 +42,32 @@ export default function RegisterPage() {
         }
       })
 
+      // Set auth cookies for session persistence
+      document.cookie = `flashy_role=${role}; path=/; max-age=604800; SameSite=Lax`
+      document.cookie = `flashy_email=${email}; path=/; max-age=604800; SameSite=Lax`
+      await fetch('/api/auth/demo-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role, email }),
+      }).catch(() => {})
+
       if (error) {
         // Fallback demo redirect
         setSuccessMsg('Đăng ký tài khoản thành công! Đang chuyển hướng...')
         setTimeout(() => {
           if (role === 'PHOTOGRAPHER') {
-            router.push('/photographer/onboarding')
+            window.location.href = '/photographer/onboarding'
           } else {
-            router.push('/customer/dashboard')
+            window.location.href = '/customer/dashboard'
           }
-        }, 1500)
+        }, 1200)
         return
       }
 
-      setSuccessMsg('Đăng ký thành công! Vui lòng kiểm tra email để xác thực tài khoản.')
+      setSuccessMsg('Đăng ký thành công! Đang chuyển hướng đến bảng điều khiển...')
       setTimeout(() => {
-        router.push(role === 'PHOTOGRAPHER' ? '/photographer/onboarding' : '/customer/dashboard')
-      }, 1500)
+        window.location.href = role === 'PHOTOGRAPHER' ? '/photographer/onboarding' : '/customer/dashboard'
+      }, 1200)
     } catch (err: any) {
       console.error(err)
     } finally {
@@ -238,3 +247,18 @@ export default function RegisterPage() {
     </div>
   )
 }
+
+export default function RegisterPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <RegisterFormContent />
+    </Suspense>
+  )
+}
+

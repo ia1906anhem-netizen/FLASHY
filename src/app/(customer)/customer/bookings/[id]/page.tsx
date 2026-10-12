@@ -88,7 +88,7 @@ export default function CustomerBookingDetailPage() {
                   Mở kho ảnh đám mây
                 </Button>
               </Link>
-              <Link href="/customer/messages">
+              <Link href={`/customer/messages?photographer=${photographer.id}&bookingId=${bookingId}`}>
                 <Button variant="outline" className="rounded-xl text-xs font-bold h-10">
                   <MessageCircle className="w-4 h-4 mr-1.5" />
                   Chat với thợ
@@ -190,7 +190,7 @@ export default function CustomerBookingDetailPage() {
             </div>
 
             <div className="pt-3 border-t border-slate-100 flex gap-2">
-              <Link href={`/customer/messages`} className="w-full">
+              <Link href={`/customer/messages?photographer=${photographer.id}&bookingId=${bookingId}`} className="w-full">
                 <Button variant="outline" size="sm" className="w-full rounded-xl text-xs font-bold h-9">
                   <MessageCircle className="w-3.5 h-3.5 mr-1.5" />
                   Gửi tin nhắn

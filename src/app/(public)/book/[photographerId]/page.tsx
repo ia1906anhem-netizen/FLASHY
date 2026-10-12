@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Suspense } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -32,7 +32,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 
-export default function BookingWizardPage() {
+function BookingWizardContent() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -599,3 +599,18 @@ export default function BookingWizardPage() {
     </div>
   )
 }
+
+export default function BookingWizardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <BookingWizardContent />
+    </Suspense>
+  )
+}
+

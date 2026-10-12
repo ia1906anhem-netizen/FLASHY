@@ -13,7 +13,7 @@ export function isSupabaseConfigured(): boolean {
     !SUPABASE_URL.includes('placeholder') &&
     !!SUPABASE_KEY &&
     !SUPABASE_KEY.includes('placeholder') &&
-    SUPABASE_KEY.length > 100
+    SUPABASE_KEY.length > 20
   )
 }
 

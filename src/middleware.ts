@@ -15,8 +15,11 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
   const demoRole = request.cookies.get('flashy_role')?.value
 
+  // Helper: exact match or subpath match (e.g. /photographer or /photographer/..., but NOT /photographers)
+  const isMatch = (base: string) => pathname === base || pathname.startsWith(`${base}/`)
+
   // Admin route protection
-  if (PROTECTED_ADMIN_ROUTES.some(route => pathname.startsWith(route))) {
+  if (PROTECTED_ADMIN_ROUTES.some(isMatch)) {
     // 1. Check demo role cookie first
     if (demoRole === 'ADMIN') {
       return supabaseResponse
@@ -30,30 +33,38 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-      {
-        cookies: {
-          getAll() { return request.cookies.getAll() },
-          setAll() {},
-        },
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+      if (supabaseUrl && supabaseKey) {
+        const supabase = createServerClient(
+          supabaseUrl,
+          supabaseKey,
+          {
+            cookies: {
+              getAll() { return request.cookies.getAll() },
+              setAll() {},
+            },
+          }
+        )
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+
+        if (!profile || profile.role !== 'ADMIN') {
+          return NextResponse.redirect(new URL('/unauthorized', request.url))
+        }
       }
-    )
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile || profile.role !== 'ADMIN') {
-      return NextResponse.redirect(new URL('/unauthorized', request.url))
+    } catch {
+      // Fallback
     }
   }
 
   // Customer route protection
-  if (PROTECTED_CUSTOMER_ROUTES.some(route => pathname.startsWith(route))) {
+  if (PROTECTED_CUSTOMER_ROUTES.some(isMatch)) {
     if (!user && !demoRole) {
       const url = request.nextUrl.clone()
       url.pathname = '/login'
@@ -63,7 +74,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Photographer route protection
-  if (PROTECTED_PHOTOGRAPHER_ROUTES.some(route => pathname.startsWith(route))) {
+  if (PROTECTED_PHOTOGRAPHER_ROUTES.some(isMatch)) {
     if (demoRole === 'PHOTOGRAPHER' || demoRole === 'ADMIN') {
       return supabaseResponse
     }
@@ -76,14 +87,28 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Auth routes - redirect to dashboard if already logged in (unless redirecting explicitly)
+  // Auth routes - redirect to dashboard or intended target if already authenticated
   if (AUTH_ROUTES.some(route => pathname === route)) {
-    const hasRedirectParam = request.nextUrl.searchParams.has('redirect')
-    if (!hasRedirectParam && (user || demoRole)) {
-      if (demoRole === 'ADMIN') {
+    const redirectParam = request.nextUrl.searchParams.get('redirect')
+    if (user || demoRole) {
+      const role = demoRole || 'CUSTOMER'
+      // If there's a valid redirect param that is not an auth route itself
+      if (redirectParam && !AUTH_ROUTES.some(r => redirectParam.startsWith(r))) {
+        // Prevent customer from being redirected to admin/photographer private areas
+        const isTargetAllowed = 
+          role === 'ADMIN' ? true :
+          role === 'PHOTOGRAPHER' ? !redirectParam.startsWith('/admin') :
+          !redirectParam.startsWith('/admin') && !redirectParam.startsWith('/photographer/') && redirectParam !== '/photographer'
+
+        if (isTargetAllowed) {
+          return NextResponse.redirect(new URL(redirectParam, request.url))
+        }
+      }
+
+      if (role === 'ADMIN') {
         return NextResponse.redirect(new URL('/admin', request.url))
       }
-      if (demoRole === 'PHOTOGRAPHER') {
+      if (role === 'PHOTOGRAPHER') {
         return NextResponse.redirect(new URL('/photographer/dashboard', request.url))
       }
       return NextResponse.redirect(new URL('/customer/dashboard', request.url))

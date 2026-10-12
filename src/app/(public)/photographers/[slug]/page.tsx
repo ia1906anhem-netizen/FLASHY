@@ -145,7 +145,7 @@ export default function PhotographerProfilePage() {
                   Đặt lịch ngay
                 </Button>
               </Link>
-              <Link href={`/customer/messages`} className="w-full">
+              <Link href={`/customer/messages?photographer=${photographer.id}`} className="w-full">
                 <Button variant="outline" className="w-full h-11 rounded-2xl font-semibold text-sm border-slate-300">
                   <MessageCircle className="w-4 h-4 mr-2" />
                   Nhắn tin trao đổi

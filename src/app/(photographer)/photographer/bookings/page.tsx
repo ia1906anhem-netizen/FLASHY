@@ -188,7 +188,7 @@ export default function PhotographerBookingsManagementPage() {
                 </Link>
               </div>
 
-              <Link href="/customer/messages">
+              <Link href="/photographer/messages">
                 <Button variant="outline" size="sm" className="rounded-xl text-xs font-bold h-9">
                   <MessageCircle className="w-3.5 h-3.5 mr-1" />
                   Chat với khách
