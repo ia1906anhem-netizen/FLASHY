@@ -35,9 +35,11 @@ function LoginFormContent() {
   const performDemoLogin = async (role: 'CUSTOMER' | 'PHOTOGRAPHER' | 'ADMIN', userEmail?: string) => {
     setLoading(true)
     setErrorMsg('')
+    try {
       const effectiveEmail = userEmail || email
       const normalizedEmail = effectiveEmail.trim().toLowerCase()
       let finalUserName = ''
+
       try {
         const existingUsers = JSON.parse(localStorage.getItem('flashy_registered_users') || '{}')
         if (existingUsers[normalizedEmail]?.full_name) {
@@ -48,10 +50,10 @@ function LoginFormContent() {
       if (!finalUserName) {
         finalUserName =
           role === 'ADMIN'
-            ? 'Ban Qu\u1ea3n Tr\u1ecb Flashy'
+            ? 'Ban Quản Trị Flashy'
             : role === 'PHOTOGRAPHER'
-            ? (normalizedEmail.includes('photo') ? 'Minh Tr\u00ed (TriStreet)' : normalizedEmail.split('@')[0])
-            : (normalizedEmail.includes('cust') ? 'Nguy\u1ec5n Thu Trang' : normalizedEmail.split('@')[0])
+            ? (normalizedEmail.includes('photo') ? 'Minh Trí (TriStreet)' : normalizedEmail.split('@')[0])
+            : (normalizedEmail.includes('cust') ? 'Nguyễn Thu Trang' : normalizedEmail.split('@')[0])
       }
 
       // IMPORTANT: Clear any previous session before setting new one
