@@ -64,15 +64,35 @@ export function Header({ user }: HeaderProps) {
     if (!user && typeof document !== 'undefined') {
       const matchRole = document.cookie.match(/flashy_role=([^;]+)/)
       const matchEmail = document.cookie.match(/flashy_email=([^;]+)/)
+      const matchName = document.cookie.match(/flashy_name=([^;]+)/)
       if (matchRole) {
         const role = matchRole[1]
         const email = matchEmail ? decodeURIComponent(matchEmail[1]) : (
           role === 'ADMIN' ? 'admin@flashy.vn' : role === 'PHOTOGRAPHER' ? 'photo@flashy.vn' : 'cust@flashy.vn'
         )
-        const fullName =
-          role === 'ADMIN' ? 'Ban Quản Trị Flashy' : role === 'PHOTOGRAPHER' ? 'Minh Trí (TriStreet)' : 'Nguyễn Thu Trang'
+        let fullName = matchName ? decodeURIComponent(matchName[1]) : ''
+        if (!fullName) {
+          try {
+            const stored = localStorage.getItem('flashy_current_user')
+            if (stored) {
+              const p = JSON.parse(stored)
+              if (p.full_name) fullName = p.full_name
+            }
+          } catch {}
+        }
+        if (!fullName) {
+          if (email.toLowerCase().includes('cust') || email.toLowerCase().includes('customer@flashy.vn')) {
+            fullName = 'Nguyễn Thu Trang'
+          } else if (email.toLowerCase().includes('photo') || email.toLowerCase().includes('photographer@flashy.vn')) {
+            fullName = 'Minh Trí (TriStreet)'
+          } else if (email.toLowerCase().includes('admin')) {
+            fullName = 'Ban Quản Trị Flashy'
+          } else {
+            fullName = email.split('@')[0]
+          }
+        }
         setActiveUser({
-          id: 'demo-user',
+          id: 'current-user',
           email,
           full_name: fullName,
           role,
@@ -93,6 +113,10 @@ export function Header({ user }: HeaderProps) {
   const handleSignOut = async () => {
     document.cookie = 'flashy_role=; path=/; max-age=0'
     document.cookie = 'flashy_email=; path=/; max-age=0'
+    document.cookie = 'flashy_name=; path=/; max-age=0'
+    try {
+      localStorage.removeItem('flashy_current_user')
+    } catch {}
     await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
     try {
       await supabase.auth.signOut()

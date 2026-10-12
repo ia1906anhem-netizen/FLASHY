@@ -12,6 +12,14 @@ export async function POST(request: NextRequest) {
         : 'customer@flashy.vn'
     )
 
+    const name = body.name || body.fullName || (
+      role === 'ADMIN'
+        ? 'Ban Quản Trị Flashy'
+        : role === 'PHOTOGRAPHER'
+        ? (email.includes('photographer@flashy.vn') ? 'Minh Trí (TriStreet)' : email.split('@')[0])
+        : (email.includes('customer@flashy.vn') ? 'Nguyễn Thu Trang' : email.split('@')[0])
+    )
+
     let redirectTo = '/customer/dashboard'
     if (role === 'ADMIN') {
       redirectTo = '/admin'
@@ -23,6 +31,7 @@ export async function POST(request: NextRequest) {
       success: true,
       role,
       email,
+      name,
       redirectTo,
     })
 
@@ -34,6 +43,12 @@ export async function POST(request: NextRequest) {
     })
 
     response.cookies.set('flashy_email', email, {
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+      sameSite: 'lax',
+    })
+
+    response.cookies.set('flashy_name', encodeURIComponent(name), {
       path: '/',
       maxAge: 60 * 60 * 24 * 7,
       sameSite: 'lax',

@@ -35,16 +35,49 @@ function LoginFormContent() {
   const performDemoLogin = async (role: 'CUSTOMER' | 'PHOTOGRAPHER' | 'ADMIN', userEmail?: string) => {
     setLoading(true)
     setErrorMsg('')
-    try {
-      // Set client-side cookie directly
+      const effectiveEmail = userEmail || email
+      const normalizedEmail = effectiveEmail.trim().toLowerCase()
+      let finalUserName = ''
+      try {
+        const existingUsers = JSON.parse(localStorage.getItem('flashy_registered_users') || '{}')
+        if (existingUsers[normalizedEmail]?.full_name) {
+          finalUserName = existingUsers[normalizedEmail].full_name
+        }
+      } catch {}
+
+      if (!finalUserName) {
+        finalUserName =
+          role === 'ADMIN'
+            ? 'Ban Qu\u1ea3n Tr\u1ecb Flashy'
+            : role === 'PHOTOGRAPHER'
+            ? (normalizedEmail.includes('photo') ? 'Minh Tr\u00ed (TriStreet)' : normalizedEmail.split('@')[0])
+            : (normalizedEmail.includes('cust') ? 'Nguy\u1ec5n Thu Trang' : normalizedEmail.split('@')[0])
+      }
+
+      // IMPORTANT: Clear any previous session before setting new one
+      document.cookie = 'flashy_role=; path=/; max-age=0'
+      document.cookie = 'flashy_email=; path=/; max-age=0'
+      document.cookie = 'flashy_name=; path=/; max-age=0'
+      try { localStorage.removeItem('flashy_current_user') } catch {}
+
+      // Set new session cookies
       document.cookie = `flashy_role=${role}; path=/; max-age=604800; SameSite=Lax`
-      document.cookie = `flashy_email=${userEmail || email}; path=/; max-age=604800; SameSite=Lax`
+      document.cookie = `flashy_email=${encodeURIComponent(normalizedEmail)}; path=/; max-age=604800; SameSite=Lax`
+      document.cookie = `flashy_name=${encodeURIComponent(finalUserName)}; path=/; max-age=604800; SameSite=Lax`
+
+      try {
+        localStorage.setItem('flashy_current_user', JSON.stringify({
+          email: normalizedEmail,
+          full_name: finalUserName,
+          role
+        }))
+      } catch {}
 
       // Call API to also set HTTP-only cookie on response
       const res = await fetch('/api/auth/demo-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, email: userEmail || email }),
+        body: JSON.stringify({ role, email: normalizedEmail, name: finalUserName, fullName: finalUserName }),
       })
       const data = await res.json()
 

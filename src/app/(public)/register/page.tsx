@@ -42,13 +42,43 @@ function RegisterFormContent() {
         }
       })
 
-      // Set auth cookies for session persistence
+      // IMPORTANT: Clear any previous session first to prevent data bleed-through
+      document.cookie = 'flashy_role=; path=/; max-age=0'
+      document.cookie = 'flashy_email=; path=/; max-age=0'
+      document.cookie = 'flashy_name=; path=/; max-age=0'
+      try { localStorage.removeItem('flashy_current_user') } catch {}
+
+      // Set new user session cookies
+      const normalizedEmail = email.trim().toLowerCase()
       document.cookie = `flashy_role=${role}; path=/; max-age=604800; SameSite=Lax`
-      document.cookie = `flashy_email=${email}; path=/; max-age=604800; SameSite=Lax`
+      document.cookie = `flashy_email=${encodeURIComponent(normalizedEmail)}; path=/; max-age=604800; SameSite=Lax`
+      document.cookie = `flashy_name=${encodeURIComponent(fullName.trim())}; path=/; max-age=604800; SameSite=Lax`
+
+      try {
+        const userProfile = {
+          id: `u-${Date.now()}`,
+          email: normalizedEmail,
+          full_name: fullName.trim(),
+          phone,
+          role,
+          created_at: new Date().toISOString(),
+          coins: 50,
+        }
+        localStorage.setItem('flashy_current_user', JSON.stringify(userProfile))
+        // Save to the registered users store (keyed by normalized email)
+        const existingUsers = JSON.parse(localStorage.getItem('flashy_registered_users') || '{}')
+        existingUsers[normalizedEmail] = userProfile
+        localStorage.setItem('flashy_registered_users', JSON.stringify(existingUsers))
+        // Initialize empty bookings for this user
+        if (!localStorage.getItem(`flashy_bookings_${normalizedEmail}`)) {
+          localStorage.setItem(`flashy_bookings_${normalizedEmail}`, JSON.stringify([]))
+        }
+      } catch {}
+
       await fetch('/api/auth/demo-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, email }),
+        body: JSON.stringify({ role, email: normalizedEmail, name: fullName.trim(), fullName: fullName.trim() }),
       }).catch(() => {})
 
       if (error) {
