@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
   Users,
@@ -15,59 +15,106 @@ import {
   ArrowUpRight,
   ArrowRight,
   Clock,
-  Percent
+  Percent,
+  RotateCcw
 } from 'lucide-react'
 import { formatVND } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  getStoredBookings,
+  getApprovedProviders,
+  getRegisteredUsersList,
+  getDisputes,
+  resetCleanSlateStore,
+  type PersistentBooking,
+} from '@/lib/data/booking-store'
 
 export default function AdminOverviewPage() {
-  const summary = {
-    total_gmv: 184500000,
-    platform_commission: 12450000,
-    total_users: 1420,
-    total_photographers: 118,
-    verified_photographers: 94,
-    active_bookings: 34,
-    completed_bookings: 512,
-    open_disputes: 2,
-    pending_escrow: 18900000,
-    pending_payouts: 6400000,
+  const [bookings, setBookings] = useState<PersistentBooking[]>([])
+  const [verifiedPhotographersCount, setVerifiedPhotographersCount] = useState(0)
+  const [totalUsersCount, setTotalUsersCount] = useState(0)
+  const [totalPhotographersCount, setTotalPhotographersCount] = useState(0)
+  const [openDisputesCount, setOpenDisputesCount] = useState(0)
+  const [pendingPayoutsAmount, setPendingPayoutsAmount] = useState(0)
+  const [isClientLoaded, setIsClientLoaded] = useState(false)
+
+  const loadData = () => {
+    const allBookings = getStoredBookings()
+    const allProviders = getApprovedProviders()
+    const allUsers = getRegisteredUsersList()
+    const allDisputes = getDisputes()
+
+    let withdrawalsPending = 0
+    try {
+      const rawWithdrawals = localStorage.getItem('flashy_withdrawals')
+      if (rawWithdrawals) {
+        const wList = JSON.parse(rawWithdrawals)
+        withdrawalsPending = wList
+          .filter((w: any) => w.status === 'PENDING')
+          .reduce((sum: number, w: any) => sum + (w.amount || 0), 0)
+      }
+    } catch {}
+
+    const photographersOnly = allUsers.filter((u) => u.role === 'PHOTOGRAPHER')
+
+    setBookings(allBookings)
+    setVerifiedPhotographersCount(allProviders.length)
+    setTotalUsersCount(allUsers.length)
+    setTotalPhotographersCount(Math.max(allProviders.length, photographersOnly.length))
+    setOpenDisputesCount(allDisputes.filter((d) => d.status === 'OPEN').length)
+    setPendingPayoutsAmount(withdrawalsPending)
+    setIsClientLoaded(true)
   }
 
-  const recentBookings = [
-    {
-      id: 'BK-892104',
-      customer: 'Nguyễn Thu Trang',
-      photographer: 'Minh Trí (TriStreet)',
-      package: 'Vibe Sài Gòn',
-      total: 550000,
-      status: 'CONFIRMED',
-      status_label: 'Sắp diễn ra',
-      escrow: 'HELD_BY_PROVIDER',
-    },
-    {
-      id: 'BK-781923',
-      customer: 'Trần Minh Hoàng',
-      photographer: 'Lê Bảo Visuals',
-      package: 'Quick Date',
-      total: 220000,
-      status: 'PHOTOS_DELIVERED',
-      status_label: 'Đang duyệt 48h',
-      escrow: 'REVIEW_WINDOW',
-    },
-    {
-      id: 'BK-651209',
-      customer: 'Võ Mai Anh',
-      photographer: 'Thảo Nguyên Photo',
-      package: 'Outdoor Ngoại cảnh',
-      total: 1100000,
-      status: 'DISPUTED',
-      status_label: 'Có khiếu nại (Đóng băng)',
-      escrow: 'DISPUTED',
+  useEffect(() => {
+    loadData()
+    window.addEventListener('flashy_bookings_updated', loadData)
+    window.addEventListener('flashy_providers_updated', loadData)
+    window.addEventListener('flashy_admin_updated', loadData)
+    window.addEventListener('storage', loadData)
+    return () => {
+      window.removeEventListener('flashy_bookings_updated', loadData)
+      window.removeEventListener('flashy_providers_updated', loadData)
+      window.removeEventListener('flashy_admin_updated', loadData)
+      window.removeEventListener('storage', loadData)
     }
-  ]
+  }, [])
+
+  // Dynamic Financial & Operational Calculations
+  const totalGmv = bookings.reduce((sum, b) => sum + (b.total_amount || 0), 0)
+  const platformCommission = Math.round(totalGmv * 0.15)
+  const activeBookings = bookings.filter(
+    (b) =>
+      b.status === 'CONFIRMED' ||
+      b.status === 'PHOTOGRAPHER_ARRIVED' ||
+      b.status === 'SHOOTING' ||
+      b.status === 'EDITING' ||
+      b.status === 'PHOTOS_DELIVERED'
+  )
+  const pendingEscrow = activeBookings.reduce((sum, b) => sum + (b.total_amount || 0), 0)
+  const recentBookings = bookings.slice(0, 5)
+
+  const summary = {
+    total_gmv: totalGmv,
+    platform_commission: platformCommission,
+    total_users: totalUsersCount,
+    total_photographers: totalPhotographersCount,
+    verified_photographers: verifiedPhotographersCount,
+    active_bookings: activeBookings.length,
+    completed_bookings: bookings.filter((b) => b.status === 'COMPLETED' || b.status === 'ACCEPTED').length,
+    open_disputes: openDisputesCount,
+    pending_escrow: pendingEscrow,
+    pending_payouts: pendingPayoutsAmount,
+  }
+
+  const handleResetCleanSlate = () => {
+    if (confirm('Khởi tạo lại hệ thống về trạng thái sạch (Clean Slate: 0 đơn, 0 thợ, 0 GMV)?')) {
+      resetCleanSlateStore()
+      loadData()
+    }
+  }
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -89,6 +136,16 @@ export default function AdminOverviewPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleResetCleanSlate}
+            className="rounded-xl text-xs font-bold h-10 border-slate-300 text-slate-600 hover:text-rose-600 hover:border-rose-300 bg-white"
+            title="Đưa toàn bộ hệ thống về 0 để kiểm tra luồng sạch"
+          >
+            <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
+            Làm Sạch Dữ Liệu (Clean Slate)
+          </Button>
           <Link href="/admin/disputes">
             <Button size="sm" className="bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold h-10 shadow-sm">
               <AlertTriangle className="w-3.5 h-3.5 mr-1.5" />
@@ -192,44 +249,67 @@ export default function AdminOverviewPage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
-                <th className="pb-3 font-bold">Mã Đơn</th>
-                <th className="pb-3 font-bold">Khách Hàng</th>
-                <th className="pb-3 font-bold">Nhiếp Ảnh Gia</th>
-                <th className="pb-3 font-bold">Gói</th>
-                <th className="pb-3 font-bold">Giá Trị</th>
-                <th className="pb-3 font-bold">Tiến Độ</th>
-                <th className="pb-3 font-bold">Trạng Thái Escrow</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {recentBookings.map((b) => (
-                <tr key={b.id} className="hover:bg-slate-50/60">
-                  <td className="py-3.5 font-mono text-slate-400">{b.id}</td>
-                  <td className="py-3.5 font-bold text-slate-900">{b.customer}</td>
-                  <td className="py-3.5">{b.photographer}</td>
-                  <td className="py-3.5">{b.package}</td>
-                  <td className="py-3.5 font-black text-slate-900">{formatVND(b.total)}</td>
-                  <td className="py-3.5">
-                    <span className="font-bold text-slate-700">{b.status_label}</span>
-                  </td>
-                  <td className="py-3.5">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                      b.escrow === 'DISPUTED'
-                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                        : b.escrow === 'REVIEW_WINDOW'
-                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                    }`}>
-                      {b.escrow}
-                    </span>
-                  </td>
+          {recentBookings.length === 0 ? (
+            <div className="py-12 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+              <div className="w-12 h-12 mx-auto rounded-full bg-violet-100 text-violet-600 flex items-center justify-center mb-3">
+                <Clock className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-bold text-slate-800">Chưa có giao dịch / đơn hàng nào</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                Hệ thống đang ở trạng thái Clean Slate (sạch hoàn toàn). Dữ liệu và doanh thu sẽ tự động xuất hiện khi khách hàng đặt lịch thật.
+              </p>
+              <div className="mt-4">
+                <Link href="/photographers">
+                  <Button size="sm" variant="outline" className="text-xs rounded-xl font-medium">
+                    Đặt thử 1 lịch chụp mẫu →
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
+                  <th className="pb-3 font-bold">Mã Đơn</th>
+                  <th className="pb-3 font-bold">Khách Hàng</th>
+                  <th className="pb-3 font-bold">Nhiếp Ảnh Gia</th>
+                  <th className="pb-3 font-bold">Gói</th>
+                  <th className="pb-3 font-bold">Giá Trị</th>
+                  <th className="pb-3 font-bold">Tiến Độ</th>
+                  <th className="pb-3 font-bold">Trạng Thái Escrow</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {recentBookings.map((b) => (
+                  <tr key={b.id} className="hover:bg-slate-50/60">
+                    <td className="py-3.5 font-mono text-slate-500 font-semibold">{b.booking_number || b.id}</td>
+                    <td className="py-3.5 font-bold text-slate-900">{b.customer_name}</td>
+                    <td className="py-3.5">{b.photographer_name}</td>
+                    <td className="py-3.5">{b.package_name}</td>
+                    <td className="py-3.5 font-black text-slate-900">{formatVND(b.total_amount)}</td>
+                    <td className="py-3.5">
+                      <span className="font-bold text-slate-700">{b.status_label}</span>
+                    </td>
+                    <td className="py-3.5">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                        b.status === 'DISPUTED'
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : b.status === 'COMPLETED' || b.status === 'ACCEPTED'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}>
+                        {b.status === 'DISPUTED'
+                          ? 'TRANH CHẤP'
+                          : b.status === 'COMPLETED' || b.status === 'ACCEPTED'
+                          ? 'ĐÃ GIẢI NGÂN'
+                          : 'ESCROW ĐANG GIỮ'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </Card>
 

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import {
   Lock,
   Unlock,
@@ -15,82 +16,129 @@ import {
 } from 'lucide-react'
 import { formatVND } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import {
+  getStoredBookings,
+  updateStoredBookingStatus,
+  type PersistentBooking
+} from '@/lib/data/booking-store'
+
+interface EscrowRecord {
+  id: string
+  booking_id: string
+  customer: string
+  photographer: string
+  gross: number
+  fee_rate: string
+  net_payout: number
+  status: 'HELD_BY_PROVIDER' | 'REVIEW_WINDOW' | 'RELEASE_ELIGIBLE' | 'RELEASED' | 'DISPUTED'
+  status_label: string
+  hours_remaining: string
+  can_release: boolean
+}
 
 export default function AdminEscrowPage() {
-  const [records, setRecords] = useState([
-    {
-      id: 'ESC-892104',
-      booking_id: 'BK-892104',
-      customer: 'Nguyễn Thu Trang',
-      photographer: 'Minh Trí (TriStreet)',
-      gross: 550000,
-      fee_rate: '6.0%',
-      net_payout: 517000,
-      status: 'HELD_BY_PROVIDER',
-      status_label: 'Tiền đã khóa • Chờ chụp',
-      hours_remaining: 'Chưa tính (Chưa giao ảnh)',
-      can_release: false,
-    },
-    {
-      id: 'ESC-781923',
-      booking_id: 'BK-781923',
-      customer: 'Trần Minh Hoàng',
-      photographer: 'Lê Bảo Visuals',
-      gross: 220000,
-      fee_rate: '4.0%',
-      net_payout: 211200,
-      status: 'REVIEW_WINDOW',
-      status_label: 'Đang đếm ngược 48h kiểm duyệt',
-      hours_remaining: '34 giờ còn lại',
-      can_release: false,
-    },
-    {
-      id: 'ESC-512984',
-      booking_id: 'BK-512984',
-      customer: 'Phạm Phương Thảo',
-      photographer: 'Thảo Nguyên Photo',
-      gross: 800000,
-      fee_rate: '9.0%',
-      net_payout: 728000,
-      status: 'RELEASE_ELIGIBLE',
-      status_label: 'Đã hết 48h • Đủ điều kiện giải ngân',
-      hours_remaining: '0 giờ (Đủ điều kiện)',
-      can_release: true,
-    },
-    {
-      id: 'ESC-651209',
-      booking_id: 'BK-651209',
-      customer: 'Võ Mai Anh',
-      photographer: 'Hoàng Nam Sunset',
-      gross: 1100000,
-      fee_rate: '0.0%',
-      net_payout: 1100000,
-      status: 'DISPUTED',
-      status_label: 'ĐANG ĐÓNG BĂNG • Tranh chấp mở',
-      hours_remaining: 'Tạm dừng vì có khiếu nại',
-      can_release: false,
-    }
-  ])
+  const [records, setRecords] = useState<EscrowRecord[]>([])
+  const [isLoaded, setIsLoaded] = useState(false)
 
-  const handleExecuteRelease = (id: string) => {
-    setRecords(records.map(r => {
-      if (r.id === id) {
+  const loadEscrow = () => {
+    const bookings = getStoredBookings()
+    const mapped: EscrowRecord[] = bookings
+      .filter((b) => b.status !== 'CANCELLED')
+      .map((b) => {
+        const net = Math.round(b.total_amount * 0.85)
+        const num = (b.booking_number || b.id).replace('BK-', '')
+
+        if (b.status === 'DISPUTED') {
+          return {
+            id: `ESC-${num}`,
+            booking_id: b.id,
+            customer: b.customer_name,
+            photographer: b.photographer_name,
+            gross: b.total_amount,
+            fee_rate: '15.0%',
+            net_payout: net,
+            status: 'DISPUTED',
+            status_label: 'ĐANG ĐÓNG BĂNG • Tranh chấp mở',
+            hours_remaining: 'Tạm dừng vì có khiếu nại',
+            can_release: false,
+          }
+        }
+
+        if (b.status === 'COMPLETED' || b.status === 'ACCEPTED') {
+          return {
+            id: `ESC-${num}`,
+            booking_id: b.id,
+            customer: b.customer_name,
+            photographer: b.photographer_name,
+            gross: b.total_amount,
+            fee_rate: '15.0%',
+            net_payout: net,
+            status: 'RELEASED',
+            status_label: '✓ Đã giải ngân thành công',
+            hours_remaining: '0 giờ (Đã hoàn tất)',
+            can_release: false,
+          }
+        }
+
+        if (b.status === 'PHOTOS_DELIVERED') {
+          return {
+            id: `ESC-${num}`,
+            booking_id: b.id,
+            customer: b.customer_name,
+            photographer: b.photographer_name,
+            gross: b.total_amount,
+            fee_rate: '15.0%',
+            net_payout: net,
+            status: 'RELEASE_ELIGIBLE',
+            status_label: 'Đang trong cửa sổ duyệt 48h',
+            hours_remaining: 'Đủ điều kiện giải ngân',
+            can_release: true,
+          }
+        }
+
         return {
-          ...r,
-          status: 'RELEASED',
-          status_label: '✓ Đã giải ngân thành công',
+          id: `ESC-${num}`,
+          booking_id: b.id,
+          customer: b.customer_name,
+          photographer: b.photographer_name,
+          gross: b.total_amount,
+          fee_rate: '15.0%',
+          net_payout: net,
+          status: 'HELD_BY_PROVIDER',
+          status_label: 'Tiền đã khóa • Đang chuẩn bị chụp',
+          hours_remaining: 'Chờ giao ảnh',
           can_release: false,
         }
-      }
-      return r
-    }))
+      })
+
+    setRecords(mapped)
+    setIsLoaded(true)
   }
+
+  useEffect(() => {
+    loadEscrow()
+    window.addEventListener('flashy_bookings_updated', loadEscrow)
+    window.addEventListener('flashy_admin_updated', loadEscrow)
+    window.addEventListener('storage', loadEscrow)
+    return () => {
+      window.removeEventListener('flashy_bookings_updated', loadEscrow)
+      window.removeEventListener('flashy_admin_updated', loadEscrow)
+      window.removeEventListener('storage', loadEscrow)
+    }
+  }, [])
+
+  const handleExecuteRelease = (bookingId: string) => {
+    updateStoredBookingStatus(bookingId, 'COMPLETED')
+  }
+
+  const totalHeld = records
+    .filter((r) => r.status !== 'RELEASED')
+    .reduce((sum, r) => sum + r.gross, 0)
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -102,9 +150,14 @@ export default function AdminEscrowPage() {
           </p>
         </div>
 
-        <Badge variant="verified" className="self-start sm:self-auto py-1 px-3">
-          Escrow Daemon Active
-        </Badge>
+        <div className="flex items-center gap-3">
+          <div className="text-xs font-semibold text-slate-600 bg-white border border-slate-200 px-3.5 py-1.5 rounded-xl shadow-sm">
+            Đang giữ ký quỹ: <span className="font-bold text-amber-600">{formatVND(totalHeld)}</span>
+          </div>
+          <Badge variant="verified" className="self-start sm:self-auto py-1 px-3">
+            Escrow Daemon Active
+          </Badge>
+        </div>
       </div>
 
       {/* Escrow Rule Summary Card */}
@@ -139,63 +192,76 @@ export default function AdminEscrowPage() {
         <h3 className="font-bold text-slate-900 text-base mb-4">Các Giao Dịch Ký Quỹ Đang Được Theo Dõi</h3>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
-                <th className="pb-3 font-bold">Mã Escrow</th>
-                <th className="pb-3 font-bold">Khách Hàng / Thợ</th>
-                <th className="pb-3 font-bold">Tổng Đơn</th>
-                <th className="pb-3 font-bold">Hoa Hồng</th>
-                <th className="pb-3 font-bold">Thù Lao Rút</th>
-                <th className="pb-3 font-bold">Thời Gian Còn</th>
-                <th className="pb-3 font-bold">Hành Động</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {records.map((r) => (
-                <tr key={r.id} className="hover:bg-slate-50/60">
-                  <td className="py-3.5 font-mono text-slate-400">{r.id}</td>
-                  <td className="py-3.5">
-                    <p className="font-bold text-slate-900">{r.customer}</p>
-                    <p className="text-[11px] text-slate-400">→ {r.photographer}</p>
-                  </td>
-                  <td className="py-3.5 font-bold">{formatVND(r.gross)}</td>
-                  <td className="py-3.5">{r.fee_rate}</td>
-                  <td className="py-3.5 font-black text-emerald-600">{formatVND(r.net_payout)}</td>
-                  <td className="py-3.5">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                      r.status === 'DISPUTED'
-                        ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                        : r.status === 'RELEASE_ELIGIBLE'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse'
-                        : 'bg-amber-50 text-amber-700 border border-amber-200'
-                    }`}>
-                      {r.hours_remaining}
-                    </span>
-                  </td>
-                  <td className="py-3.5">
-                    {r.can_release ? (
-                      <Button
-                        size="sm"
-                        onClick={() => handleExecuteRelease(r.id)}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold h-8"
-                      >
-                        <Unlock className="w-3.5 h-3.5 mr-1" />
-                        Giải ngân
-                      </Button>
-                    ) : r.status === 'RELEASED' ? (
-                      <span className="text-emerald-600 font-bold text-[11px]">✓ Đã giải ngân</span>
-                    ) : (
-                      <span className="text-slate-400 text-[11px] italic">Đang khóa an toàn</span>
-                    )}
-                  </td>
+          {records.length === 0 ? (
+            <div className="py-14 text-center border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+              <div className="w-12 h-12 mx-auto rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mb-3">
+                <Lock className="w-6 h-6" />
+              </div>
+              <p className="text-sm font-bold text-slate-800">Chưa có giao dịch ký quỹ Escrow nào (Clean Slate)</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                Hệ thống chưa có khoản tiền ký quỹ nào đang giữ. Khi có khách hàng đặt lịch chụp thật, số tiền ký quỹ và cơ chế bảo vệ 48h sẽ tự động kích hoạt tại đây.
+              </p>
+            </div>
+          ) : (
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
+                  <th className="pb-3 font-bold">Mã Escrow</th>
+                  <th className="pb-3 font-bold">Khách Hàng / Thợ</th>
+                  <th className="pb-3 font-bold">Tổng Đơn</th>
+                  <th className="pb-3 font-bold">Hoa Hồng</th>
+                  <th className="pb-3 font-bold">Thù Lao Rút</th>
+                  <th className="pb-3 font-bold">Thời Gian Còn</th>
+                  <th className="pb-3 font-bold">Hành Động</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {records.map((r) => (
+                  <tr key={r.id} className="hover:bg-slate-50/60">
+                    <td className="py-3.5 font-mono text-slate-400">{r.id}</td>
+                    <td className="py-3.5">
+                      <p className="font-bold text-slate-900">{r.customer}</p>
+                      <p className="text-[11px] text-slate-400">→ {r.photographer}</p>
+                    </td>
+                    <td className="py-3.5 font-bold">{formatVND(r.gross)}</td>
+                    <td className="py-3.5">{r.fee_rate}</td>
+                    <td className="py-3.5 font-black text-emerald-600">{formatVND(r.net_payout)}</td>
+                    <td className="py-3.5">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                          r.status === 'DISPUTED'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : r.status === 'RELEASE_ELIGIBLE'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 animate-pulse'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}
+                      >
+                        {r.hours_remaining}
+                      </span>
+                    </td>
+                    <td className="py-3.5">
+                      {r.can_release ? (
+                        <Button
+                          size="sm"
+                          onClick={() => handleExecuteRelease(r.booking_id)}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold h-8"
+                        >
+                          <Unlock className="w-3.5 h-3.5 mr-1" />
+                          Giải ngân
+                        </Button>
+                      ) : r.status === 'RELEASED' ? (
+                        <span className="text-emerald-600 font-bold text-[11px]">✓ Đã giải ngân</span>
+                      ) : (
+                        <span className="text-slate-400 text-[11px] italic">Đang khóa an toàn</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </Card>
-
     </div>
   )
 }

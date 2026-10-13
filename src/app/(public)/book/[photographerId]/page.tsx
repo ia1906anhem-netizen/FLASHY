@@ -24,13 +24,15 @@ import {
   Zap,
   Info
 } from 'lucide-react'
-import { DEMO_PHOTOGRAPHERS, DEMO_PACKAGES, DEMO_ADDONS, DEMO_VOUCHERS } from '@/lib/data/mock-data'
 import { formatVND } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
+import { LocationTabPicker } from '@/components/shared/location-tab-picker'
+import { createPersistentBooking, getApprovedProviders } from '@/lib/data/booking-store'
+import { calculateFullBookingCommission } from '@/lib/utils/commission'
 
 function BookingWizardContent() {
   const params = useParams()
@@ -39,34 +41,96 @@ function BookingWizardContent() {
   const photographerId = params?.photographerId as string
   const preselectedPkgId = searchParams?.get('pkg')
 
-  const photographer = DEMO_PHOTOGRAPHERS.find(p => p.id === photographerId) || DEMO_PHOTOGRAPHERS[0]
+  const approvedList = getApprovedProviders()
+  const foundApproved = approvedList.find(p => p.id === photographerId || p.slug === photographerId)
+
+  const photographer: any = foundApproved
+    ? {
+        id: foundApproved.id,
+        slug: foundApproved.slug,
+        display_name: foundApproved.name,
+        avatar_url: foundApproved.avatar,
+        cover_image_url: foundApproved.cover,
+        average_rating: foundApproved.rating || 5.0,
+        review_count: foundApproved.reviews || 0,
+        is_verified: foundApproved.is_verified,
+        district: foundApproved.district || 'Quận 1',
+        city: foundApproved.city || 'Hồ Chí Minh',
+        starting_price: foundApproved.starting_price || 99000,
+      }
+    : null
 
   // Wizard Step (1: Package, 2: DateTime & Location, 3: Addons & Notes, 4: Review & Payment)
   const [step, setStep] = useState<number>(1)
 
+  const availablePackages = photographer ? [
+    {
+      id: `${photographer.id}-pkg-basic`,
+      slug: 'basic',
+      name: 'Gói Chụp Tiêu Chuẩn',
+      category: 'Cơ bản',
+      base_price: photographer.starting_price || 99000,
+      duration_minutes: 60,
+      description: 'Chụp ngoại cảnh hoặc cá nhân cơ bản, giao toàn bộ file gốc và 10 ảnh chỉnh màu.',
+      original_photos: 30,
+      edited_photos: 10,
+      retouch_quota: 3,
+      delivery_days: 2,
+    },
+    {
+      id: `${photographer.id}-pkg-pro`,
+      slug: 'pro',
+      name: 'Gói Chụp Lookbook / Concept',
+      category: 'Phổ biến',
+      base_price: Math.round(((photographer.starting_price || 99000) * 1.8) / 10000) * 10000,
+      duration_minutes: 120,
+      description: 'Chụp chuyên sâu với đầy đủ concept, chỉnh sửa chi tiết và hỗ trợ stylist.',
+      original_photos: 80,
+      edited_photos: 25,
+      retouch_quota: 10,
+      delivery_days: 3,
+    }
+  ] : []
+
   // Booking selections
-  const [selectedPkgId, setSelectedPkgId] = useState<string>(preselectedPkgId || DEMO_PACKAGES[1].id)
-  const [shootingDate, setShootingDate] = useState<string>('2026-04-15')
+  const [selectedPkgId, setSelectedPkgId] = useState<string>(preselectedPkgId || (availablePackages[0]?.id ?? 'pkg-basic'))
+  const [shootingDate, setShootingDate] = useState<string>('')
   const [shootingTime, setShootingTime] = useState<string>('09:00')
-  const [locationName, setLocationName] = useState<string>('Bến Bạch Đằng, Quận 1')
+  const [locationName, setLocationName] = useState<string>('')
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([])
-  const [conceptNotes, setConceptNotes] = useState<string>('Chụp phong cách vintage đường phố, tone màu ấm áp kiểu film cổ điển.')
+  const [conceptNotes, setConceptNotes] = useState<string>('')
   
   // Voucher & Payment
-  const [voucherCode, setVoucherCode] = useState<string>('FLASHYNEW')
-  const [appliedVoucher, setAppliedVoucher] = useState<any>(DEMO_VOUCHERS[0])
+  const [voucherCode, setVoucherCode] = useState<string>('')
+  const [appliedVoucher, setAppliedVoucher] = useState<any>(null)
   const [voucherError, setVoucherError] = useState<string>('')
   const [paymentMethod, setPaymentMethod] = useState<'sandbox' | 'momo' | 'zalopay' | 'qr'>('sandbox')
   
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [bookingSuccess, setBookingSuccess] = useState<any>(null)
 
-  const selectedPackage = DEMO_PACKAGES.find(p => p.id === selectedPkgId) || DEMO_PACKAGES[0]
+  const selectedPackage = availablePackages.find(p => p.id === selectedPkgId) || availablePackages[0] || {
+    id: 'pkg-default',
+    slug: 'basic',
+    name: 'Gói Chụp Tiêu Chuẩn',
+    category: 'Cơ bản',
+    base_price: 99000,
+    duration_minutes: 60,
+    original_photos: 30,
+    edited_photos: 10,
+    delivery_days: 2
+  }
 
   // Cost calculations
+  const ADDONS = [
+    { id: 'addon-makeup', name: 'Trang điểm chuyên nghiệp', description: 'Có chuyên viên makeup đi kèm buổi chụp', price: 250000 },
+    { id: 'addon-drone', name: 'Chụp flycam / drone', description: 'Bay flycam ghi hình từ trên cao', price: 500000 },
+    { id: 'addon-retouch', name: 'Retouch chuyên sâu (thêm 5 ảnh)', description: 'Chỉnh sửa nâng cao da, ánh sáng, background', price: 200000 },
+    { id: 'addon-video', name: 'Video highlights (30–60s)', description: 'Clip highlight buổi chụp phong cách cinematic', price: 350000 },
+  ]
   const packagePrice = selectedPackage.base_price
   const addonsTotal = selectedAddonIds.reduce((sum, id) => {
-    const addon = DEMO_ADDONS.find(a => a.id === id)
+    const addon = ADDONS.find(a => a.id === id)
     return sum + (addon ? addon.price : 0)
   }, 0)
   const travelFee = 0 // Within free radius
@@ -86,15 +150,29 @@ function BookingWizardContent() {
   const totalPayable = Math.max(0, subtotal - discountAmount)
   const depositAmount = Math.round(totalPayable * 0.3) // 30% deposit
 
+  const commissionBreakdown = useMemo(() => {
+    const selectedAddonsList = ADDONS.filter((a) => selectedAddonIds.includes(a.id)).map((a) => ({
+      id: a.id,
+      name: a.name,
+      amountVnd: a.price,
+    }))
+    return calculateFullBookingCommission({
+      packageSlug: selectedPackage.slug,
+      packageAmountVnd: packagePrice,
+      photographerCompletedCount: 5,
+      addons: selectedAddonsList,
+    })
+  }, [selectedPackage, packagePrice, selectedAddonIds])
+
   const handleApplyVoucher = () => {
     setVoucherError('')
-    const v = DEMO_VOUCHERS.find(x => x.code.toUpperCase() === voucherCode.trim().toUpperCase())
-    if (v) {
-      setAppliedVoucher(v)
-    } else {
-      setVoucherError('Mã ưu đãi không hợp lệ hoặc đã hết hạn')
-      setAppliedVoucher(null)
+    // Vouchers come from real backend; for now, clear applied voucher on invalid code
+    if (voucherCode.trim().length === 0) {
+      setVoucherError('Vui lòng nhập mã voucher')
+      return
     }
+    setVoucherError('Mã ưu đãi không hợp lệ hoặc đã hết hạn')
+    setAppliedVoucher(null)
   }
 
   const toggleAddon = (addonId: string) => {
@@ -108,22 +186,53 @@ function BookingWizardContent() {
   const handleConfirmBooking = () => {
     setIsSubmitting(true)
     setTimeout(() => {
-      const newBooking = {
-        id: `BK-${Date.now().toString().slice(-6)}`,
+      // Gather selected addons
+      const selectedAddonsList = ADDONS.filter((a) => selectedAddonIds.includes(a.id)).map((a) => ({
+        id: a.id,
+        name: a.name,
+        price: a.price,
+      }))
+
+      // Persist to store
+      const persistent = createPersistentBooking({
         photographer_id: photographer.id,
         photographer_name: photographer.display_name,
+        photographer_avatar: photographer.avatar_url || undefined,
+        photographer_slug: photographer.slug,
+        package_slug: selectedPackage.slug,
         package_name: selectedPackage.name,
         shooting_date: shootingDate,
         shooting_time: shootingTime,
-        location: locationName,
+        location: locationName || 'Bưu điện Thành Phố & Nhà thờ Đức Bà',
+        concept_notes: conceptNotes,
+        package_price: packagePrice,
+        addons_total: addonsTotal,
         total_amount: totalPayable,
         deposit_amount: depositAmount,
-        status: 'CONFIRMED',
         payment_method: paymentMethod,
-      }
-      setBookingSuccess(newBooking)
+        selected_addons: selectedAddonsList,
+      })
+
+      setBookingSuccess(persistent)
       setIsSubmitting(false)
-    }, 1200)
+    }, 1000)
+  }
+
+  if (!photographer) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center mb-4">
+          <Camera className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Không tìm thấy nhiếp ảnh gia</h2>
+        <p className="text-sm text-slate-500 max-w-md mb-6">
+          Nhiếp ảnh gia này không tồn tại hoặc chưa được kiểm duyệt trên hệ thống FLASHY.
+        </p>
+        <Link href="/photographers">
+          <Button className="bg-brand text-white rounded-xl">Khám phá danh sách thợ ảnh</Button>
+        </Link>
+      </div>
+    )
   }
 
   return (
@@ -181,7 +290,7 @@ function BookingWizardContent() {
             <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-4 animate-bounce">
               <CheckCircle2 className="w-8 h-8" />
             </div>
-            <Badge variant="verified" className="mb-2">Giao dịch thành công</Badge>
+            <Badge variant="secondary" className="mb-2 bg-emerald-50 text-emerald-700 border border-emerald-200">Giao dịch thành công</Badge>
             <h2 className="text-2xl font-black text-slate-900 mb-1">
               Đã Xác Nhận Đặt Lịch Chụp!
             </h2>
@@ -239,7 +348,7 @@ function BookingWizardContent() {
                     Bước 1: Chọn gói chụp ảnh phù hợp
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {DEMO_PACKAGES.map((pkg) => {
+                    {availablePackages.map((pkg) => {
                       const isSelected = selectedPkgId === pkg.id
                       return (
                         <div
@@ -319,19 +428,15 @@ function BookingWizardContent() {
                   </div>
 
                   <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1.5">Địa điểm chụp hoặc điểm hẹn cụ thể *</label>
-                    <div className="relative">
-                      <MapPin className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <Input
-                        value={locationName}
-                        onChange={(e) => setLocationName(e.target.value)}
-                        placeholder="Ví dụ: Bưu điện Thành Phố, Cà phê Dinh Độc Lập..."
-                        className="pl-10 rounded-xl h-11"
-                      />
-                    </div>
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Nhiếp ảnh gia {photographer.display_name} hỗ trợ di chuyển miễn phí trong bán kính {photographer.service_radius_km}km.
-                    </p>
+                    <label className="text-xs font-bold text-slate-700 block mb-2">
+                      Chọn địa điểm chụp hoặc điểm hẹn (Theo Tab & Gợi ý điểm Hot) *
+                    </label>
+                    <LocationTabPicker
+                      value={locationName}
+                      onChange={(val) => setLocationName(val)}
+                      serviceRadiusKm={photographer.service_radius_km}
+                      photographerName={photographer.display_name}
+                    />
                   </div>
 
                   <div className="pt-4 flex justify-between">
@@ -358,7 +463,7 @@ function BookingWizardContent() {
                   <div>
                     <label className="text-xs font-bold text-slate-700 block mb-2">Dịch vụ cộng thêm tùy chọn (Add-ons):</label>
                     <div className="space-y-2.5">
-                      {DEMO_ADDONS.map((addon) => {
+                      {ADDONS.map((addon) => {
                         const isChecked = selectedAddonIds.includes(addon.id)
                         return (
                           <div
@@ -378,8 +483,20 @@ function BookingWizardContent() {
                                 className="rounded text-violet-600 focus:ring-violet-500 w-4 h-4 pointer-events-none"
                               />
                               <div>
-                                <p className="font-bold text-slate-900 text-xs">{addon.name}</p>
-                                <p className="text-[11px] text-slate-500">{addon.description}</p>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-bold text-slate-900 text-xs">{addon.name}</p>
+                                  {addon.id === 'addon-1' && (
+                                    <span className="text-[10px] font-black bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">
+                                      MUA Tự Do (10% Phí sàn)
+                                    </span>
+                                  )}
+                                  {addon.id === 'addon-2' && (
+                                    <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
+                                      Shop Đối Tác (10%–12% Chiết khấu)
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-0.5">{addon.description}</p>
                               </div>
                             </div>
                             <span className="font-black text-violet-700 text-xs">+{formatVND(addon.price)}</span>
@@ -420,6 +537,76 @@ function BookingWizardContent() {
                     <ShieldCheck className="w-5 h-5 text-emerald-600" />
                     Bước 4: Xem lại chi tiết & Chọn phương thức cọc
                   </h3>
+
+                  {/* Detailed Invoice & Transparent Commission Breakdown */}
+                  <div className="p-5 bg-slate-50/90 rounded-2xl border border-slate-200 text-xs space-y-3">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                      <span className="font-bold text-slate-800 text-sm">Hóa Đơn Buổi Chụp & Bóc Tách Thù Lao</span>
+                      <span className="text-[11px] font-semibold text-violet-700 bg-violet-100/70 px-2 py-0.5 rounded-full">
+                        Minh bạch 100%
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-slate-600">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <span className="font-semibold text-slate-800">Gói chụp ({selectedPackage.name}):</span>
+                          <span className="text-[11px] text-slate-400 block">Thời lượng: {selectedPackage.duration_minutes} phút</span>
+                        </div>
+                        <span className="font-bold text-slate-900">{formatVND(packagePrice)}</span>
+                      </div>
+
+                      {/* Addons breakdown with specific commission notes */}
+                      {commissionBreakdown.addonCommissions.length > 0 && (
+                        <div className="pt-2 border-t border-slate-200/60 space-y-1.5">
+                          <span className="font-bold text-slate-700 block">Dịch vụ cộng thêm & Đối tác:</span>
+                          {commissionBreakdown.addonCommissions.map((ad, idx) => (
+                            <div key={idx} className="flex justify-between text-[11px] pl-2 py-0.5 bg-white/70 rounded-lg px-2">
+                              <div>
+                                <span className="font-semibold text-slate-800">• {ad.name}</span>
+                                {ad.type === 'makeup_hair' && (
+                                  <span className="text-[10px] text-pink-700 font-bold ml-1.5 bg-pink-50 px-1.5 py-0.2 rounded">
+                                    MUA Tự Do (10% Phí sàn: {formatVND(ad.commissionVnd)})
+                                  </span>
+                                )}
+                                {ad.type === 'outfit_rental' && (
+                                  <span className="text-[10px] text-indigo-700 font-bold ml-1.5 bg-indigo-50 px-1.5 py-0.2 rounded">
+                                    Shop Đối Tác ({ad.ratePercent}% Chiết khấu: {formatVND(ad.commissionVnd)})
+                                  </span>
+                                )}
+                              </div>
+                              <span className="font-bold text-slate-900">+{formatVND(ad.amountVnd)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {discountAmount > 0 && (
+                        <div className="flex justify-between text-emerald-600 font-semibold pt-1 border-t border-slate-200/60">
+                          <span>Giảm giá Voucher ({appliedVoucher.code}):</span>
+                          <span>-{formatVND(discountAmount)}</span>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between font-bold text-slate-900 text-sm pt-2 border-t border-slate-200">
+                        <span>Tổng giá trị đơn hàng:</span>
+                        <span className="text-violet-700 font-black">{formatVND(totalPayable)}</span>
+                      </div>
+
+                      <div className="flex justify-between items-center text-emerald-800 font-bold bg-emerald-50 p-3 rounded-xl border border-emerald-200">
+                        <div>
+                          <span className="text-xs">Tiền cọc ký quỹ Escrow hôm nay (30%):</span>
+                          <span className="text-[10px] text-emerald-600 block font-normal">Được giữ an toàn cho đến khi bạn duyệt nhận ảnh</span>
+                        </div>
+                        <span className="font-black text-base text-emerald-700">{formatVND(depositAmount)}</span>
+                      </div>
+
+                      <div className="flex justify-between text-slate-500 text-[11px] px-1">
+                        <span>70% còn lại thanh toán sau buổi chụp:</span>
+                        <span className="font-bold text-slate-700">{formatVND(totalPayable - depositAmount)}</span>
+                      </div>
+                    </div>
+                  </div>
 
                   {/* Payment Method Selector */}
                   <div>
@@ -518,7 +705,7 @@ function BookingWizardContent() {
                   <div className="pt-2">
                     <p className="text-[11px] font-bold text-slate-700">Dịch vụ thêm ({selectedAddonIds.length}):</p>
                     {selectedAddonIds.map(id => {
-                      const ad = DEMO_ADDONS.find(a => a.id === id)
+                      const ad = ADDONS.find(a => a.id === id)
                       return (
                         <div key={id} className="flex justify-between text-[11px] text-slate-500">
                           <span className="truncate pr-2">• {ad?.name}</span>

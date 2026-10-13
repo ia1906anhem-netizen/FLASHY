@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Bell,
@@ -41,58 +41,19 @@ interface BookingRequest {
   status: 'pending' | 'accepted' | 'rejected'
 }
 
-const DEMO_REQUESTS: BookingRequest[] = [
-  {
-    id: 'REQ001',
-    customer: { name: 'Thanh Huyền Lê', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=60&h=60&fit=crop', reviews_given: 5 },
-    package: 'Quick Date',
-    shoot_date: '18/10/2026',
-    shoot_time: '07:30',
-    location: 'Hồ Con Rùa, Quận 3, TP.HCM',
-    addons: ['Trang điểm cơ bản'],
-    concept_notes: 'Em muốn chụp phong cách lifestyle nhẹ nhàng, màu pastel. Mặc áo dài trắng.',
-    total_amount: 250000,
-    deposit_amount: 75000,
-    distance_km: 1.2,
-    requested_at: new Date(Date.now() - 10 * 60000).toISOString(),
-    status: 'pending',
-  },
-  {
-    id: 'REQ002',
-    customer: { name: 'Bảo Long Trương', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=60&h=60&fit=crop', reviews_given: 2 },
-    package: 'Vibe Sài Gòn',
-    shoot_date: '20/10/2026',
-    shoot_time: '16:00',
-    location: 'Bến Nhà Rồng, Quận 4, TP.HCM',
-    addons: [],
-    concept_notes: 'Chụp ảnh couple với bạn gái. Phong cách street, tone màu film.',
-    total_amount: 500000,
-    deposit_amount: 150000,
-    distance_km: 3.5,
-    requested_at: new Date(Date.now() - 2 * 3600000).toISOString(),
-    status: 'pending',
-  },
-  {
-    id: 'REQ003',
-    customer: { name: 'Mai Anh Đỗ', avatar: 'https://images.unsplash.com/photo-1607746882042-944635dfe10e?w=60&h=60&fit=crop', reviews_given: 8 },
-    package: 'Flash Shot',
-    shoot_date: '13/10/2026',
-    shoot_time: '08:00',
-    location: 'Quận 1, TP.HCM (gần trung tâm)',
-    addons: [],
-    concept_notes: 'Chụp nhanh để làm ảnh profile LinkedIn. Cần có nền sạch.',
-    total_amount: 99000,
-    deposit_amount: 29700,
-    distance_km: 0.8,
-    requested_at: new Date(Date.now() - 5 * 3600000).toISOString(),
-    status: 'accepted',
-  },
-]
-
 export default function PhotographerRequestsPage() {
-  const [requests, setRequests] = useState(DEMO_REQUESTS)
+  const [requests, setRequests] = useState<BookingRequest[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'pending' | 'accepted' | 'rejected'>('pending')
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('flashy_booking_requests')
+      if (stored) {
+        setRequests(JSON.parse(stored))
+      }
+    } catch {}
+  }, [])
 
   const pendingCount = requests.filter(r => r.status === 'pending').length
 

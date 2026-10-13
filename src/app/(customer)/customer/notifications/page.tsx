@@ -19,54 +19,6 @@ interface Notification {
   action_url?: string
 }
 
-const DEMO_NOTIFICATIONS: Notification[] = [
-  {
-    id: '1',
-    type: 'booking',
-    title: 'Nhiếp ảnh gia đã xác nhận lịch hẹn',
-    body: 'Minh Tú Nguyễn đã xác nhận buổi chụp ảnh Lifestyle của bạn vào ngày 15/10/2026 lúc 08:00.',
-    read: false,
-    created_at: new Date(Date.now() - 15 * 60000).toISOString(),
-    action_url: '/customer/bookings/FL123456',
-  },
-  {
-    id: '2',
-    type: 'payment',
-    title: 'Thanh toán thành công',
-    body: 'Đơn đặt chụp #FL123456 đã thanh toán thành công. Số tiền 150.000đ đang được giữ an toàn.',
-    read: false,
-    created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
-    action_url: '/customer/bookings/FL123456',
-  },
-  {
-    id: '3',
-    type: 'review',
-    title: 'Ảnh của bạn đã sẵn sàng để xem',
-    body: 'Linh Chi Phạm đã giao 15 ảnh đã chỉnh màu cho buổi chụp Quick Date. Hãy xem và chọn ảnh retouch!',
-    read: true,
-    created_at: new Date(Date.now() - 1 * 86400000).toISOString(),
-    action_url: '/customer/bookings/FL654321/gallery',
-  },
-  {
-    id: '4',
-    type: 'promotion',
-    title: 'Ưu đãi đặc biệt cho thành viên Creator 🎉',
-    body: 'Chúc mừng! Bạn đã đạt cấp Creator. Nhận ngay voucher giảm 10% cho lần đặt tiếp theo.',
-    read: true,
-    created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
-    action_url: '/customer/vouchers',
-  },
-  {
-    id: '5',
-    type: 'system',
-    title: 'Cập nhật chính sách hoàn tiền',
-    body: 'FLASHY đã cập nhật chính sách hoàn tiền và giải quyết tranh chấp. Vui lòng đọc để biết thêm.',
-    read: true,
-    created_at: new Date(Date.now() - 7 * 86400000).toISOString(),
-    action_url: '/marketplace-rules',
-  },
-]
-
 const TYPE_CONFIG: Record<NotifType, { icon: React.ElementType; color: string; bg: string }> = {
   booking: { icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50' },
   review: { icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' },
@@ -76,8 +28,20 @@ const TYPE_CONFIG: Record<NotifType, { icon: React.ElementType; color: string; b
 }
 
 export default function CustomerNotificationsPage() {
-  const [notifications, setNotifications] = useState(DEMO_NOTIFICATIONS)
+  const [notifications, setNotifications] = useState<Notification[]>([])
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
+
+  // Load real notifications from localStorage if any
+  useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('flashy_notifications')
+        if (stored) {
+          setNotifications(JSON.parse(stored))
+        }
+      }
+    } catch {}
+  })
 
   const unreadCount = notifications.filter(n => !n.read).length
   const filtered = filter === 'unread' ? notifications.filter(n => !n.read) : notifications

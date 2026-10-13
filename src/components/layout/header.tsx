@@ -60,6 +60,21 @@ export function Header({ user }: HeaderProps) {
     setProfileOpen(false)
   }, [pathname])
 
+function safeDecode(val?: string | null): string {
+  if (!val) return ''
+  let current = val
+  try {
+    while (current.includes('%')) {
+      const decoded = decodeURIComponent(current)
+      if (decoded === current) break
+      current = decoded
+    }
+    return current
+  } catch {
+    return current
+  }
+}
+
   useEffect(() => {
     if (!user && typeof document !== 'undefined') {
       const matchRole = document.cookie.match(/flashy_role=([^;]+)/)
@@ -67,16 +82,16 @@ export function Header({ user }: HeaderProps) {
       const matchName = document.cookie.match(/flashy_name=([^;]+)/)
       if (matchRole) {
         const role = matchRole[1]
-        const email = matchEmail ? decodeURIComponent(matchEmail[1]) : (
+        const email = matchEmail ? safeDecode(matchEmail[1]) : (
           role === 'ADMIN' ? 'admin@flashy.vn' : role === 'PHOTOGRAPHER' ? 'photo@flashy.vn' : 'cust@flashy.vn'
         )
-        let fullName = matchName ? decodeURIComponent(matchName[1]) : ''
+        let fullName = matchName ? safeDecode(matchName[1]) : ''
         if (!fullName) {
           try {
             const stored = localStorage.getItem('flashy_current_user')
             if (stored) {
               const p = JSON.parse(stored)
-              if (p.full_name) fullName = p.full_name
+              if (p.full_name) fullName = safeDecode(p.full_name)
             }
           } catch {}
         }
@@ -91,6 +106,7 @@ export function Header({ user }: HeaderProps) {
             fullName = email.split('@')[0]
           }
         }
+        fullName = safeDecode(fullName)
         setActiveUser({
           id: 'current-user',
           email,
@@ -106,7 +122,10 @@ export function Header({ user }: HeaderProps) {
         setActiveUser(null)
       }
     } else if (user) {
-      setActiveUser(user)
+      setActiveUser({
+        ...user,
+        full_name: safeDecode(user.full_name || ''),
+      })
     }
   }, [user, pathname])
 
@@ -206,14 +225,14 @@ export function Header({ user }: HeaderProps) {
                       <Avatar className="w-8 h-8">
                         <AvatarImage src={activeUser.avatar_url || ''} />
                         <AvatarFallback className="text-xs">
-                          {getInitials(activeUser.full_name)}
+                          {getInitials(safeDecode(activeUser.full_name))}
                         </AvatarFallback>
                       </Avatar>
                       <span className={cn(
-                        'text-sm font-medium hidden md:block max-w-[100px] truncate',
+                        'text-sm font-medium hidden md:block max-w-[120px] truncate',
                         isScrolled || !isHomePage ? 'text-foreground' : 'text-white'
                       )}>
-                        {activeUser.full_name.split(' ').pop()}
+                        {safeDecode(activeUser.full_name).split(' ').pop()}
                       </span>
                       <ChevronDown className={cn(
                         'w-4 h-4 hidden md:block transition-transform duration-200',
@@ -233,7 +252,7 @@ export function Header({ user }: HeaderProps) {
                         >
                           <div className="p-2">
                             <div className="px-3 py-2 mb-1">
-                              <p className="text-sm font-semibold">{activeUser.full_name}</p>
+                              <p className="text-sm font-semibold truncate">{safeDecode(activeUser.full_name)}</p>
                               <p className="text-xs text-muted-foreground truncate">{activeUser.email}</p>
                               {activeUser.role && (
                                 <Badge variant={activeUser.role === 'PHOTOGRAPHER' ? 'verified' : 'secondary'} className="mt-1 text-xs">

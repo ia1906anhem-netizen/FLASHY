@@ -31,6 +31,10 @@ FLASHY operates a tiered commission engine with snapshotting on order creation:
    - *Flash Shot & Quick Date:* 6.0% platform fee.
    - *Vibe Sài Gòn & Outdoor:* 9.0% platform fee.
 
+### Add-On & Partner Commission Rules
+5. **Dịch vụ Makeup / Làm tóc:** 10.0% hoa hồng nền tảng (Áp dụng cho Makeup Artist tự do liên kết sàn).
+6. **Dịch vụ Thuê trang phục & Phụ kiện:** 10.0% – 12.0% (Chiết khấu trích từ các Shop thời trang đối tác liên kết).
+
 *Note: All monetary transactions are calculated as integer Vietnamese Dong (VND) amounts. Floating-point calculations are strictly forbidden.*
 
 ---

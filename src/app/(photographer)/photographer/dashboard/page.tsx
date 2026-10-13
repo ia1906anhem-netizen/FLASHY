@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import {
@@ -24,46 +24,50 @@ import { formatVND } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { getStoredBookings, PersistentBooking } from '@/lib/data/booking-store'
 
 export default function PhotographerDashboardPage() {
   const [readyToWork, setReadyToWork] = useState(true)
+  const [bookings, setBookings] = useState<PersistentBooking[]>([])
+
+  useEffect(() => {
+    const list = getStoredBookings()
+    setBookings(list)
+  }, [])
+
+  // Calculate stats dynamically from real stored bookings
+  const completedList = bookings.filter((b) => ['ACCEPTED', 'COMPLETED'].includes(b.status))
+  const grossEarnings = completedList.reduce((sum, b) => sum + b.total_amount, 0)
+  const platformCommission = completedList.reduce((sum, b) => sum + Math.round((b.total_amount * 6) / 100), 0)
+  const netEarnings = grossEarnings - platformCommission
+  const pendingSettlement = bookings
+    .filter((b) => b.status === 'PHOTOS_DELIVERED')
+    .reduce((sum, b) => sum + b.total_amount, 0)
 
   const stats = {
-    gross_earnings: 14850000,
-    platform_commission: 890000,
-    net_earnings: 13960000,
-    pending_settlement: 2450000,
-    available_withdrawable: 11510000,
-    total_completed: 48,
+    gross_earnings: grossEarnings,
+    platform_commission: platformCommission,
+    net_earnings: netEarnings,
+    pending_settlement: pendingSettlement,
+    available_withdrawable: netEarnings,
+    total_completed: completedList.length,
     average_rating: 4.95,
   }
 
-  const upcomingShoots = [
-    {
-      id: 'BK-892104',
-      customer_name: 'Nguyễn Thu Trang',
-      package: 'Vibe Sài Gòn',
-      date: '15/04/2026',
-      time: '15:30',
-      location: 'Bến Bạch Đằng & Bưu điện Q.1',
-      total: 550000,
-      status: 'CONFIRMED',
-      status_label: 'Sắp diễn ra',
-      status_color: 'bg-emerald-50 text-emerald-700',
-    },
-    {
-      id: 'BK-781923',
-      customer_name: 'Trần Minh Hoàng',
-      package: 'Quick Date',
-      date: '10/04/2026',
-      time: '09:00',
-      location: 'Hồ Con Rùa, Quận 3',
-      total: 220000,
-      status: 'PHOTOS_DELIVERED',
-      status_label: 'Đang chờ khách duyệt 48h',
-      status_color: 'bg-violet-50 text-violet-700',
-    }
-  ]
+  const upcomingShoots = bookings
+    .filter((b) => ['CONFIRMED', 'PHOTOGRAPHER_ARRIVED', 'SHOOTING', 'EDITING', 'PHOTOS_DELIVERED'].includes(b.status))
+    .map((b) => ({
+      id: b.booking_number,
+      customer_name: b.customer_name,
+      package: b.package_name,
+      date: b.shooting_date,
+      time: b.shooting_time,
+      location: b.location,
+      total: b.total_amount,
+      status: b.status,
+      status_label: b.status_label,
+      status_color: b.status_color,
+    }))
 
   return (
     <div className="p-6 md:p-8 space-y-8">
@@ -183,46 +187,56 @@ export default function PhotographerDashboardPage() {
           </Link>
         </div>
 
-        <div className="space-y-4">
-          {upcomingShoots.map((shoot) => (
-            <div
-              key={shoot.id}
-              className="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4"
-            >
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-900 text-sm">{shoot.customer_name}</span>
-                  <span className="text-[11px] text-violet-600 font-semibold bg-violet-100/60 px-2 py-0.5 rounded">
-                    {shoot.package}
-                  </span>
-                  <span className="font-mono text-[10px] text-slate-400">#{shoot.id}</span>
+        {upcomingShoots.length === 0 ? (
+          <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200 text-center">
+            <Camera className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+            <p className="font-bold text-xs text-slate-700">Chưa có buổi chụp nào sắp tới</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Khi khách hàng đặt lịch với bạn qua FLASHY, thông tin đơn chụp sẽ hiển thị tại đây.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {upcomingShoots.map((shoot) => (
+              <div
+                key={shoot.id}
+                className="p-5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-slate-900 text-sm">{shoot.customer_name}</span>
+                    <span className="text-[11px] text-violet-600 font-semibold bg-violet-100/60 px-2 py-0.5 rounded">
+                      {shoot.package}
+                    </span>
+                    <span className="font-mono text-[10px] text-slate-400">#{shoot.id}</span>
+                  </div>
+                  <p className="text-xs text-slate-600 flex items-center gap-2">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    {shoot.time} • {shoot.date} • {shoot.location}
+                  </p>
+                  <p className="text-xs font-bold text-slate-900">
+                    Thù lao buổi chụp: {formatVND(shoot.total)}
+                  </p>
                 </div>
-                <p className="text-xs text-slate-600 flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5 text-slate-400" />
-                  {shoot.time} • {shoot.date} • {shoot.location}
-                </p>
-                <p className="text-xs font-bold text-slate-900">
-                  Thù lao buổi chụp: {formatVND(shoot.total)}
-                </p>
-              </div>
 
-              <div className="flex items-center gap-2">
-                <Link href={`/photographer/bookings/${shoot.id}/delivery`}>
-                  <Button size="sm" className="bg-brand hover:opacity-90 text-white rounded-xl text-xs font-bold h-9">
-                    <UploadCloud className="w-3.5 h-3.5 mr-1.5" />
-                    Tải ảnh bàn giao
-                  </Button>
-                </Link>
-                <Link href="/photographer/messages">
-                  <Button variant="outline" size="sm" className="rounded-xl text-xs font-bold h-9">
-                    <MessageCircle className="w-3.5 h-3.5 mr-1" />
-                    Chat
-                  </Button>
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Link href={`/photographer/bookings`}>
+                    <Button size="sm" className="bg-brand hover:opacity-90 text-white rounded-xl text-xs font-bold h-9">
+                      <UploadCloud className="w-3.5 h-3.5 mr-1.5" />
+                      Xem & Cập nhật
+                    </Button>
+                  </Link>
+                  <Link href="/photographer/messages">
+                    <Button variant="outline" size="sm" className="rounded-xl text-xs font-bold h-9">
+                      <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                      Chat
+                    </Button>
+                  </Link>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Gamification / Star of the Quarter Widget */}

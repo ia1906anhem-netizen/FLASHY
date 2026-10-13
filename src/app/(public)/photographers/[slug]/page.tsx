@@ -23,7 +23,7 @@ import {
   FileCheck,
   AlertCircle
 } from 'lucide-react'
-import { DEMO_PHOTOGRAPHERS, DEMO_PACKAGES, DEMO_REVIEWS } from '@/lib/data/mock-data'
+import { getApprovedProviders, getStoredBookings } from '@/lib/data/booking-store'
 import { formatVND } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -34,13 +34,104 @@ export default function PhotographerProfilePage() {
   const router = useRouter()
   const slug = params?.slug as string
 
-  const photographer = DEMO_PHOTOGRAPHERS.find(p => p.slug === slug) || DEMO_PHOTOGRAPHERS[0]
+  const approvedList = getApprovedProviders()
+  const foundApproved = approvedList.find(p => p.slug === slug || p.id === slug)
+
+  const photographer: any = foundApproved
+    ? {
+        id: foundApproved.id,
+        user_id: foundApproved.id,
+        slug: foundApproved.slug,
+        display_name: foundApproved.name,
+        bio: `Chuyên gia ${foundApproved.specialty} tại ${foundApproved.location}. Đã xác minh KYC an toàn.`,
+        tagline: foundApproved.specialty,
+        avatar_url: foundApproved.avatar,
+        banner_url: foundApproved.cover,
+        cover_image_url: foundApproved.cover,
+        city: foundApproved.city || 'Hồ Chí Minh',
+        district: foundApproved.district || 'Quận 1',
+        address: foundApproved.location,
+        specialties: foundApproved.specialty ? foundApproved.specialty.split(/[,·\s]+/).filter(Boolean) : ['Portrait', 'Street'],
+        experience_years: 3,
+        camera_body: 'Sony Alpha / Canon EOS R',
+        camera_lenses: ['50mm f/1.4 GM', '85mm f/1.4', '24-70mm f/2.8'],
+        equipment: ['Sony Alpha / Canon EOS R', 'Lens 50mm f/1.4 GM', 'Đèn flash & diffuser Godox'],
+        service_radius_km: 15,
+        starting_price: foundApproved.starting_price || 99000,
+        average_rating: foundApproved.rating || 5.0,
+        review_count: foundApproved.reviews || 0,
+        completed_orders_count: 0,
+        is_verified: foundApproved.is_verified,
+        is_ready_to_work: true,
+        badges: foundApproved.badge ? [foundApproved.badge] : ['⭐ Đã duyệt KYC'],
+        portfolio_photos: [foundApproved.cover],
+      }
+    : null
+
   const [activeTab, setActiveTab] = useState<'packages' | 'portfolio' | 'reviews'>('packages')
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [isSaved, setIsSaved] = useState<boolean>(false)
 
-  // Filter reviews for this photographer or use demo reviews
-  const reviews = DEMO_REVIEWS.filter(r => r.photographer_id === photographer.id || true)
+  // Real reviews from booking store
+  const allBookings = typeof window !== 'undefined' ? getStoredBookings() : []
+  const reviews = photographer
+    ? allBookings
+        .filter(b => b.photographer_id === photographer.id && b.review)
+        .map(b => ({
+          id: b.id,
+          customer_name: b.customer_name,
+          customer_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
+          rating: b.review?.rating || 5,
+          created_at: b.review?.created_at || b.created_at,
+          content: b.review?.comment || '',
+          is_verified_booking: true,
+          images: []
+        }))
+    : []
+
+  if (!photographer) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-violet-50 text-violet-600 flex items-center justify-center mb-4">
+          <Camera className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 mb-2">Chưa tìm thấy nhiếp ảnh gia</h2>
+        <p className="text-sm text-slate-500 max-w-md mb-6">
+          Hồ sơ này không tồn tại hoặc chưa được kiểm duyệt trên hệ thống FLASHY.
+        </p>
+        <Link href="/photographers">
+          <Button className="bg-brand text-white rounded-xl">Khám phá danh sách thợ ảnh</Button>
+        </Link>
+      </div>
+    )
+  }
+
+  const packages = [
+    {
+      id: `${photographer.id}-pkg-1`,
+      category: 'Cơ bản',
+      name: 'Gói Chụp Tiêu Chuẩn',
+      base_price: photographer.starting_price,
+      description: 'Chụp ngoại cảnh hoặc studio cơ bản, phù hợp chụp chân dung cá nhân, profile mạng xã hội.',
+      duration_minutes: 60,
+      original_photos: 30,
+      edited_photos: 10,
+      retouch_quota: 3,
+      delivery_days: 2,
+    },
+    {
+      id: `${photographer.id}-pkg-2`,
+      category: 'Phổ biến',
+      name: 'Gói Chụp Lookbook / Concept',
+      base_price: Math.round((photographer.starting_price * 1.8) / 10000) * 10000,
+      description: 'Chụp chuyên sâu với đầy đủ định hướng phong cách, hỗ trợ chỉnh màu nâng cao và đạo cụ.',
+      duration_minutes: 120,
+      original_photos: 80,
+      edited_photos: 25,
+      retouch_quota: 10,
+      delivery_days: 3,
+    }
+  ]
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
@@ -167,7 +258,7 @@ export default function PhotographerProfilePage() {
               <div>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Thể loại chuyên chụp</h3>
                 <div className="flex flex-wrap gap-1.5">
-                  {photographer.specialties?.map((s, i) => (
+                  {photographer.specialties?.map((s: string, i: number) => (
                     <span key={i} className="bg-violet-50 text-violet-700 font-semibold text-xs px-3 py-1 rounded-full">
                       {s}
                     </span>
@@ -181,7 +272,7 @@ export default function PhotographerProfilePage() {
               <div className="space-y-1.5 text-slate-600">
                 <p className="font-semibold text-slate-800">📸 Thiết bị sử dụng:</p>
                 <ul className="list-disc list-inside space-y-0.5 text-slate-600 pl-1">
-                  {photographer.equipment?.map((eq, i) => (
+                  {photographer.equipment?.map((eq: string, i: number) => (
                     <li key={i}>{eq}</li>
                   ))}
                 </ul>
@@ -212,7 +303,7 @@ export default function PhotographerProfilePage() {
                 : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
           >
-            Gói dịch vụ & Báo giá ({DEMO_PACKAGES.length})
+            Gói dịch vụ & Báo giá ({packages.length})
           </button>
           <button
             onClick={() => setActiveTab('portfolio')}
@@ -222,7 +313,7 @@ export default function PhotographerProfilePage() {
                 : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
           >
-            Album ảnh Portfolio ({photographer.portfolio_photos?.length || 4})
+            Album ảnh Portfolio ({photographer.portfolio_photos?.length || 0})
           </button>
           <button
             onClick={() => setActiveTab('reviews')}
@@ -232,7 +323,7 @@ export default function PhotographerProfilePage() {
                 : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
           >
-            Đánh giá từ khách ({photographer.review_count})
+            Đánh giá từ khách ({reviews.length})
           </button>
         </div>
       </div>
@@ -242,7 +333,7 @@ export default function PhotographerProfilePage() {
         {/* 1. PACKAGES TAB */}
         {activeTab === 'packages' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {DEMO_PACKAGES.map((pkg) => (
+            {packages.map((pkg) => (
               <Card key={pkg.id} className="rounded-2xl border-slate-200 hover:border-violet-300 hover:shadow-lg transition-all duration-300 flex flex-col justify-between">
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between gap-4 mb-3">
@@ -316,7 +407,7 @@ export default function PhotographerProfilePage() {
         {activeTab === 'portfolio' && (
           <div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {photographer.portfolio_photos?.map((img, idx) => (
+              {photographer.portfolio_photos?.map((img: string, idx: number) => (
                 <div
                   key={idx}
                   onClick={() => setSelectedImage(img)}
@@ -369,7 +460,7 @@ export default function PhotographerProfilePage() {
                   ))}
                 </div>
                 <p className="text-xs text-slate-500 font-medium">
-                  Dựa trên {photographer.review_count} lượt đánh giá thực tế từ khách hàng
+                  Dựa trên {reviews.length} lượt đánh giá thực tế từ khách hàng
                 </p>
               </div>
 
@@ -384,7 +475,16 @@ export default function PhotographerProfilePage() {
               </div>
             </div>
 
-            {reviews.map((rev) => (
+            {reviews.length === 0 ? (
+              <div className="bg-white p-12 rounded-2xl border border-slate-200 text-center">
+                <MessageCircle className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                <h4 className="text-sm font-bold text-slate-800">Chưa có đánh giá nào</h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  Chưa có đánh giá nào cho nhiếp ảnh gia này. Hãy là người đầu tiên đặt lịch và chia sẻ cảm nhận!
+                </p>
+              </div>
+            ) : (
+              reviews.map((rev) => (
               <Card key={rev.id} className="rounded-2xl border-slate-200">
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between gap-4 mb-3">
@@ -419,7 +519,7 @@ export default function PhotographerProfilePage() {
                   </div>
 
                   <p className="text-xs text-slate-700 leading-relaxed mb-3">
-                    {rev.comment || rev.content}
+                    {rev.content}
                   </p>
 
                   {rev.images && rev.images.length > 0 && (
@@ -433,7 +533,7 @@ export default function PhotographerProfilePage() {
                   )}
                 </CardContent>
               </Card>
-            ))}
+            )))}
           </div>
         )}
       </div>

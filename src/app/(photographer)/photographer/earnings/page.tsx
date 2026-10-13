@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import {
   DollarSign,
@@ -18,72 +18,84 @@ import { formatVND } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { getStoredBookings, PersistentBooking } from '@/lib/data/booking-store'
+import { calculateFullBookingCommission } from '@/lib/utils/commission'
 
 export default function PhotographerEarningsPage() {
-  const earningsSummary = {
-    gross_total: 14850000,
-    platform_fee_total: 890000,
-    net_earnings: 13960000,
-    released_balance: 11510000,
-    pending_escrow: 2450000,
-    withdrawn_total: 8000000,
-    available_to_withdraw: 3510000,
+  const [bookings, setBookings] = useState<PersistentBooking[]>([])
+  const [withdrawnTotal, setWithdrawnTotal] = useState<number>(0)
+  const [isLoaded, setIsLoaded] = useState(false)
+
+  const loadData = () => {
+    const list = getStoredBookings()
+    setBookings(list)
+
+    try {
+      const history = JSON.parse(localStorage.getItem('flashy_withdrawals') || '[]')
+      const totalW = history.reduce((sum: number, item: any) => sum + (item.amount || 0), 0)
+      setWithdrawnTotal(totalW)
+    } catch {
+      setWithdrawnTotal(0)
+    }
+    setIsLoaded(true)
   }
 
-  const transactions = [
-    {
-      id: 'TX-892104',
-      booking_id: 'BK-892104',
-      date: '15/04/2026',
-      package: 'Vibe Sài Gòn',
-      gross: 550000,
-      fee_rate: '6.0%',
-      fee_rule: 'Tiêu chuẩn gói đô thị',
-      fee_amount: 33000,
-      net: 517000,
-      status: 'HELD_IN_ESCROW',
-      status_label: 'Ký quỹ (Đang duyệt 48h)',
-    },
-    {
-      id: 'TX-781923',
-      booking_id: 'BK-781923',
-      date: '10/04/2026',
-      package: 'Quick Date',
-      gross: 220000,
-      fee_rate: '4.0%',
-      fee_rule: 'Khách hàng quay lại (Returning)',
-      fee_amount: 8800,
-      net: 211200,
-      status: 'HELD_IN_ESCROW',
-      status_label: 'Ký quỹ (Đang duyệt 48h)',
-    },
-    {
-      id: 'TX-651209',
-      booking_id: 'BK-651209',
-      date: '20/03/2026',
-      package: 'Outdoor Ngoại cảnh',
-      gross: 1100000,
-      fee_rate: '0.0%',
-      fee_rule: 'Ưu đãi 3 đơn đầu (0% Fee)',
-      fee_amount: 0,
-      net: 1100000,
-      status: 'RELEASED',
-      status_label: 'Đã giải ngân khả dụng',
-    },
-    {
-      id: 'TX-521908',
-      booking_id: 'BK-521908',
-      date: '12/03/2026',
-      package: 'Flash Shot',
-      gross: 99000,
-      fee_rate: '0.0%',
-      fee_rule: 'Ưu đãi 3 đơn đầu (0% Fee)',
-      fee_amount: 0,
-      net: 99000,
-      status: 'RELEASED',
-      status_label: 'Đã giải ngân khả dụng',
+  useEffect(() => {
+    loadData()
+    const handleUpdate = () => loadData()
+    window.addEventListener('flashy_bookings_updated', handleUpdate)
+    return () => window.removeEventListener('flashy_bookings_updated', handleUpdate)
+  }, [])
+
+  // Calculate dynamic transactions
+  const transactions = bookings.map((b) => {
+    const commission = calculateFullBookingCommission({
+      packageSlug: b.package_slug,
+      packageAmountVnd: b.package_price,
+      photographerCompletedCount: 5,
+      addons: (b.selected_addons || []).map((a) => ({
+        name: a.name,
+        amountVnd: a.price,
+      })),
+    })
+
+    const isReleased = b.status === 'ACCEPTED' || b.status === 'COMPLETED'
+    return {
+      id: `TX-${b.booking_number}`,
+      booking_id: b.booking_number,
+      date: b.shooting_date,
+      package: b.package_name,
+      gross: b.total_amount,
+      fee_rate: `${commission.packageRatePercent}%`,
+      fee_rule: commission.packageRuleName,
+      fee_amount: commission.totalPlatformCommissionVnd,
+      net: commission.totalNetPayoutVnd,
+      status: isReleased ? 'RELEASED' : 'HELD_IN_ESCROW',
+      status_label: isReleased ? 'Đã giải ngân khả dụng' : 'Ký quỹ (Đang duyệt/chờ)',
     }
-  ]
+  })
+
+  // Summary figures
+  const gross_total = transactions.reduce((sum, tx) => sum + tx.gross, 0)
+  const platform_fee_total = transactions.reduce((sum, tx) => sum + tx.fee_amount, 0)
+  const net_earnings = gross_total - platform_fee_total
+  const released_balance = transactions
+    .filter((tx) => tx.status === 'RELEASED')
+    .reduce((sum, tx) => sum + tx.net, 0)
+  const pending_escrow = transactions
+    .filter((tx) => tx.status === 'HELD_IN_ESCROW')
+    .reduce((sum, tx) => sum + tx.net, 0)
+  const available_to_withdraw = Math.max(0, released_balance - withdrawnTotal)
+
+  const earningsSummary = {
+    gross_total,
+    platform_fee_total,
+    net_earnings,
+    released_balance,
+    pending_escrow,
+    withdrawn_total: withdrawnTotal,
+    available_to_withdraw,
+  }
 
   return (
     <div className="p-6 md:p-8 space-y-8 max-w-6xl mx-auto">
@@ -155,7 +167,7 @@ export default function PhotographerEarningsPage() {
           <Percent className="w-5 h-5 text-violet-600" />
           <h3 className="font-bold text-slate-900 text-sm">Chính Sách Hoa Hồng FLASHY Đang Áp Dụng</h3>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs">
           <div className="p-3.5 rounded-2xl bg-white border border-violet-100 shadow-2xs">
             <span className="font-black text-emerald-600 text-sm block mb-0.5">0% Hoa Hồng</span>
             <strong className="text-slate-800">3 Đơn Chụp Đầu Tiên</strong>
@@ -176,49 +188,73 @@ export default function PhotographerEarningsPage() {
             <strong className="text-slate-800">Khách Hàng Quay Lại</strong>
             <p className="text-[11px] text-slate-500 mt-0.5">Giảm phí khi khách cũ đặt lại bạn trên FLASHY.</p>
           </div>
+          <div className="p-3.5 rounded-2xl bg-white border border-violet-100 shadow-2xs">
+            <span className="font-black text-fuchsia-600 text-sm block mb-0.5">10.0% Hoa Hồng</span>
+            <strong className="text-slate-800">Dịch Vụ Makeup / Làm Tóc</strong>
+            <p className="text-[11px] text-slate-500 mt-0.5">Áp dụng cho Makeup Artist tự do liên kết sàn.</p>
+          </div>
+          <div className="p-3.5 rounded-2xl bg-white border border-violet-100 shadow-2xs">
+            <span className="font-black text-indigo-600 text-sm block mb-0.5">10% – 12% Chiết Khấu</span>
+            <strong className="text-slate-800">Thuê Trang Phục & Phụ Kiện</strong>
+            <p className="text-[11px] text-slate-500 mt-0.5">Chiết khấu trực tiếp từ các Shop đối tác.</p>
+          </div>
         </div>
       </Card>
 
       {/* Authoritative Financial Ledger Table */}
       <Card className="rounded-3xl border-slate-200 bg-white p-6 md:p-8 shadow-sm">
         <h3 className="font-bold text-slate-900 text-base mb-4">Chi Tiết Từng Giao Dịch Bàn Giao</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
-                <th className="pb-3 font-bold">Mã GD</th>
-                <th className="pb-3 font-bold">Ngày</th>
-                <th className="pb-3 font-bold">Gói dịch vụ</th>
-                <th className="pb-3 font-bold">Tổng đơn</th>
-                <th className="pb-3 font-bold">Hoa hồng</th>
-                <th className="pb-3 font-bold">Thực nhận</th>
-                <th className="pb-3 font-bold">Trạng thái</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-700">
-              {transactions.map((tx) => (
-                <tr key={tx.id} className="hover:bg-slate-50/60">
-                  <td className="py-3.5 font-mono text-slate-400">{tx.id}</td>
-                  <td className="py-3.5">{tx.date}</td>
-                  <td className="py-3.5 font-bold text-slate-900">{tx.package}</td>
-                  <td className="py-3.5">{formatVND(tx.gross)}</td>
-                  <td className="py-3.5">
-                    <span className="text-slate-900 font-bold">{formatVND(tx.fee_amount)}</span>{' '}
-                    <span className="text-[10px] text-slate-400">({tx.fee_rate})</span>
-                  </td>
-                  <td className="py-3.5 font-black text-emerald-600 text-sm">{formatVND(tx.net)}</td>
-                  <td className="py-3.5">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                      tx.status === 'RELEASED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                    }`}>
-                      {tx.status_label}
-                    </span>
-                  </td>
+        {isLoaded && transactions.length === 0 ? (
+          <div className="py-12 text-center text-xs text-slate-400 space-y-2">
+            <DollarSign className="w-8 h-8 text-slate-300 mx-auto mb-1" />
+            <p className="font-bold text-slate-700 text-sm">Chưa có giao dịch thu nhập nào</p>
+            <p className="text-slate-400 max-w-sm mx-auto leading-relaxed">
+              Khi bạn hoàn thành các buổi chụp và bàn giao ảnh cho khách hàng, lịch sử doanh thu và chi tiết hoa hồng sẽ hiển thị minh bạch tại đây.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 text-slate-400 uppercase text-[10px]">
+                  <th className="pb-3 font-bold">Mã GD</th>
+                  <th className="pb-3 font-bold">Ngày</th>
+                  <th className="pb-3 font-bold">Gói dịch vụ</th>
+                  <th className="pb-3 font-bold">Tổng đơn</th>
+                  <th className="pb-3 font-bold">Hoa hồng</th>
+                  <th className="pb-3 font-bold">Thực nhận</th>
+                  <th className="pb-3 font-bold">Trạng thái</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {transactions.map((tx) => (
+                  <tr key={tx.id} className="hover:bg-slate-50/60">
+                    <td className="py-3.5 font-mono text-slate-400">{tx.id}</td>
+                    <td className="py-3.5">{tx.date}</td>
+                    <td className="py-3.5 font-bold text-slate-900">{tx.package}</td>
+                    <td className="py-3.5">{formatVND(tx.gross)}</td>
+                    <td className="py-3.5">
+                      <span className="text-slate-900 font-bold">{formatVND(tx.fee_amount)}</span>{' '}
+                      <span className="text-[10px] text-slate-400">({tx.fee_rate})</span>
+                    </td>
+                    <td className="py-3.5 font-black text-emerald-600 text-sm">{formatVND(tx.net)}</td>
+                    <td className="py-3.5">
+                      <span
+                        className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                          tx.status === 'RELEASED'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : 'bg-amber-50 text-amber-700'
+                        }`}
+                      >
+                        {tx.status_label}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Card>
 
     </div>

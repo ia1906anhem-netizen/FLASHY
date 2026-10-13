@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   CreditCard,
   Building,
@@ -17,34 +17,36 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { getStoredBookings } from '@/lib/data/booking-store'
 
 export default function PhotographerWithdrawalsPage() {
-  const [availableBalance, setAvailableBalance] = useState(3510000)
+  const [availableBalance, setAvailableBalance] = useState<number>(0)
   const [withdrawAmount, setWithdrawAmount] = useState('')
   const [selectedBank, setSelectedBank] = useState('vcb')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [history, setHistory] = useState<any[]>([])
 
-  const [history, setHistory] = useState([
-    {
-      id: 'WD-104921',
-      date: '02/04/2026 14:15',
-      bank: 'Vietcombank - CN Tân Định',
-      account_number: '•••• 8923',
-      amount: 5000000,
-      status: 'COMPLETED',
-      status_label: 'Đã chuyển thành công',
-    },
-    {
-      id: 'WD-098124',
-      date: '15/03/2026 09:30',
-      bank: 'Vietcombank - CN Tân Định',
-      account_number: '•••• 8923',
-      amount: 3000000,
-      status: 'COMPLETED',
-      status_label: 'Đã chuyển thành công',
-    }
-  ])
+  const loadData = () => {
+    // Compute withdrawable balance from completed bookings
+    const bookings = getStoredBookings()
+    const completed = bookings.filter((b) => ['ACCEPTED', 'COMPLETED'].includes(b.status))
+    const gross = completed.reduce((sum, b) => sum + b.total_amount, 0)
+    const comm = completed.reduce((sum, b) => sum + Math.round((b.total_amount * 6) / 100), 0)
+    const totalEarned = gross - comm
+
+    // Deduct already withdrawn
+    const storedHistory = JSON.parse(localStorage.getItem('flashy_withdrawals') || '[]')
+    const totalWithdrawn = storedHistory.reduce((sum: number, item: any) => sum + (item.amount || 0), 0)
+    const netAvailable = Math.max(0, totalEarned - totalWithdrawn)
+
+    setAvailableBalance(netAvailable)
+    setHistory(storedHistory)
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [])
 
   const handleWithdraw = (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,98 +62,117 @@ export default function PhotographerWithdrawalsPage() {
 
     setIsSubmitting(true)
     setTimeout(() => {
-      setAvailableBalance(availableBalance - amt)
       const newEntry = {
-        id: `WD-${Date.now().toString().slice(-6)}`,
-        date: new Date().toLocaleDateString('vi-VN') + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        id: `WD-${Math.floor(100000 + Math.random() * 900000)}`,
+        date: new Date().toLocaleString('vi-VN'),
         bank: 'Vietcombank - CN Tân Định',
         account_number: '•••• 8923',
         amount: amt,
         status: 'PROCESSING',
         status_label: 'Đang xử lý chuyển khoản',
       }
-      setHistory([newEntry, ...history])
+
+      const updatedHistory = [newEntry, ...history]
+      localStorage.setItem('flashy_withdrawals', JSON.stringify(updatedHistory))
+
+      setHistory(updatedHistory)
+      setAvailableBalance(Math.max(0, availableBalance - amt))
       setWithdrawAmount('')
       setIsSubmitting(false)
       setShowSuccess(true)
-    }, 1000)
+      setTimeout(() => setShowSuccess(false), 4000)
+    }, 1200)
   }
 
   return (
     <div className="p-6 md:p-8 space-y-8 max-w-5xl mx-auto">
-      
       {/* Header */}
       <div>
         <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-          Yêu Cầu Rút Tiền Về Tài Khoản
+          Yêu Cầu Rút Tiền & Tài Khoản Nhận Thù Lao
         </h1>
         <p className="text-xs text-slate-500 mt-0.5">
-          Chuyển khoản trực tiếp vào tài khoản ngân hàng chính chủ trong vòng 2 - 4 giờ làm việc
+          Rút tiền về tài khoản ngân hàng chính chủ sau khi khách hàng đã nghiệm thu buổi chụp
         </p>
       </div>
 
-      {/* Top Banner: Available Balance & Bank Account info */}
+      {showSuccess && (
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+          <span>
+            Yêu cầu rút tiền đã được tiếp nhận thành công! Hệ thống sẽ xử lý chuyển khoản trong vòng 2–4 giờ làm việc.
+          </span>
+        </div>
+      )}
+
+      {/* Balance Card */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* Balance */}
-        <Card className="rounded-3xl border-slate-200 bg-gradient-to-br from-violet-900 to-indigo-900 text-white p-6 shadow-md flex flex-col justify-between">
-          <div>
-            <span className="text-xs text-violet-200 font-semibold uppercase tracking-wider block mb-1">
-              Số dư khả dụng để rút
+        <Card className="rounded-3xl border-emerald-200 bg-gradient-to-br from-emerald-500/10 via-emerald-50/50 to-teal-50/40 p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
+              Số Dư Khả Dụng Để Rút
             </span>
-            <div className="text-3xl font-black mb-1">
-              {formatVND(availableBalance)}
+            <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
+              <ArrowDownLeft className="w-4 h-4" />
             </div>
-            <p className="text-xs text-violet-200">
-              Chỉ bao gồm các đơn đã hết hạn 48h kiểm duyệt Escrow hoặc khách đã duyệt nghiệm thu.
-            </p>
           </div>
-          <div className="pt-4 border-t border-white/10 text-[11px] text-violet-300 flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-            Bảo đảm an toàn giao dịch 100%
-          </div>
+          <div className="text-3xl font-black text-emerald-900 mb-1">{formatVND(availableBalance)}</div>
+          <p className="text-[11px] text-emerald-700/80">Từ các đơn hàng khách đã duyệt nghiệm thu</p>
         </Card>
 
-        {/* Linked Bank Account Card */}
-        <Card className="md:col-span-2 rounded-3xl border-slate-200 bg-white p-6 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                <Building className="w-4 h-4 text-violet-600" />
-                Tài Khoản Ngân Hàng Đã Liên Kết
-              </h3>
-              <Badge variant="verified">Đã xác minh chủ tài khoản</Badge>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-1 text-xs">
-              <p className="font-bold text-slate-900 text-sm">Ngân hàng TMCP Ngoại Thương Việt Nam (Vietcombank)</p>
-              <p className="font-mono text-slate-600 font-bold">STK: 1029 3847 8923</p>
-              <p className="text-slate-500">Chủ tài khoản: <strong>NGUYEN MINH TRI</strong> (Trùng khớp CCCD KYC)</p>
-              <p className="text-[11px] text-slate-400">Chi nhánh: Chi nhánh Tân Định, TP. Hồ Chí Minh</p>
+        <Card className="rounded-3xl border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Thời Gian Xử Lý
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
+              <Clock className="w-4 h-4" />
             </div>
           </div>
+          <div className="text-lg font-bold text-slate-900 mb-1">2 – 4 Giờ Làm Việc</div>
+          <p className="text-[11px] text-slate-500">Chuyển khoản 24/7 qua cổng Napas 247</p>
+        </Card>
 
-          <div className="pt-3 text-[11px] text-slate-400">
-            * Nhằm bảo đảm an toàn, tên chủ tài khoản ngân hàng phải trùng khớp hoàn toàn với hồ sơ CCCD đã định danh KYC.
+        <Card className="rounded-3xl border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Phí Rút Tiền
+            </span>
+            <div className="w-8 h-8 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center">
+              <ShieldCheck className="w-4 h-4" />
+            </div>
           </div>
+          <div className="text-lg font-bold text-emerald-600 mb-1">Miễn Phí 100%</div>
+          <p className="text-[11px] text-slate-500">FLASHY hỗ trợ toàn bộ phí chuyển khoản ngân hàng</p>
         </Card>
       </div>
 
       {/* Withdrawal Form */}
       <Card className="rounded-3xl border-slate-200 bg-white p-6 md:p-8 shadow-sm">
-        <h3 className="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
-          <ArrowDownLeft className="w-4 h-4 text-emerald-600" />
+        <h3 className="font-bold text-slate-900 text-base mb-4 flex items-center gap-2">
+          <CreditCard className="w-4 h-4 text-violet-600" />
           Tạo Lệnh Rút Tiền Mới
         </h3>
 
-        {showSuccess && (
-          <div className="p-4 mb-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-            <span>Lệnh rút tiền đã được tạo thành công! Tiền sẽ về tài khoản Vietcombank trong vài phút.</span>
+        <form onSubmit={handleWithdraw} className="space-y-5">
+          {/* Bank Selection */}
+          <div>
+            <label className="text-xs font-bold text-slate-700 block mb-2">Tài khoản thụ hưởng đã xác minh:</label>
+            <div className="p-4 rounded-2xl border-2 border-violet-600 bg-violet-50/40 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                  VCB
+                </div>
+                <div>
+                  <h4 className="font-bold text-slate-900 text-xs">Ngân hàng TMCP Ngoại Thương (Vietcombank)</h4>
+                  <p className="text-[11px] text-slate-500 font-mono">Số TK: 0071 0008 8923 • Chủ TK: NGUYEN MINH TRI</p>
+                </div>
+              </div>
+              <Badge className="bg-emerald-600 text-white">Chính chủ • Đã KYC</Badge>
+            </div>
           </div>
-        )}
 
-        <form onSubmit={handleWithdraw} className="space-y-4 max-w-lg">
+          {/* Amount input */}
           <div>
             <label className="text-xs font-bold text-slate-700 block mb-1.5">Số tiền muốn rút (VND) *</label>
             <div className="relative">
@@ -160,15 +181,15 @@ export default function PhotographerWithdrawalsPage() {
                 min="100000"
                 max={availableBalance}
                 step="50000"
-                placeholder="Ví dụ: 1000000"
+                placeholder="Ví dụ: 500000"
                 value={withdrawAmount}
                 onChange={(e) => setWithdrawAmount(e.target.value)}
                 className="rounded-xl h-11 text-sm font-bold"
                 required
               />
             </div>
-            <div className="flex gap-2 mt-2">
-              {[500000, 1000000, 2000000].map(amt => (
+            <div className="flex gap-2 mt-2 flex-wrap">
+              {[500000, 1000000, 2000000].map((amt) => (
                 <button
                   key={amt}
                   type="button"
@@ -178,13 +199,15 @@ export default function PhotographerWithdrawalsPage() {
                   +{formatVND(amt)}
                 </button>
               ))}
-              <button
-                type="button"
-                onClick={() => setWithdrawAmount(availableBalance.toString())}
-                className="px-2.5 py-1 rounded-lg bg-violet-100 hover:bg-violet-200 text-[11px] font-bold text-violet-700"
-              >
-                Tất cả số dư
-              </button>
+              {availableBalance > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setWithdrawAmount(availableBalance.toString())}
+                  className="px-2.5 py-1 rounded-lg bg-violet-100 hover:bg-violet-200 text-[11px] font-bold text-violet-700"
+                >
+                  Tất cả ({formatVND(availableBalance)})
+                </button>
+              )}
             </div>
           </div>
 
@@ -207,30 +230,43 @@ export default function PhotographerWithdrawalsPage() {
           Lịch Sử Rút Tiền
         </h3>
 
-        <div className="divide-y divide-slate-100 text-xs">
-          {history.map((item) => (
-            <div key={item.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div>
-                <div className="flex items-center gap-2">
-                  <strong className="text-slate-900">{formatVND(item.amount)}</strong>
-                  <span className="font-mono text-slate-400 text-[10px]">#{item.id}</span>
+        {history.length === 0 ? (
+          <div className="py-10 text-center text-xs text-slate-400 space-y-2">
+            <Clock className="w-8 h-8 text-slate-300 mx-auto mb-1" />
+            <p className="font-bold text-slate-600">Chưa có lệnh rút tiền nào</p>
+            <p className="text-slate-400 max-w-sm mx-auto">
+              Khi bạn hoàn thành các buổi chụp và gửi yêu cầu rút thù lao, lịch sử xử lý sẽ xuất hiện tại đây.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100 text-xs">
+            {history.map((item) => (
+              <div key={item.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <strong className="text-slate-900">{formatVND(item.amount)}</strong>
+                    <span className="font-mono text-slate-400 text-[10px]">#{item.id}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {item.bank} ({item.account_number})
+                  </p>
+                  <p className="text-[10px] text-slate-400">{item.date}</p>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-0.5">{item.bank} ({item.account_number})</p>
-                <p className="text-[10px] text-slate-400">{item.date}</p>
-              </div>
 
-              <div>
-                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                  item.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
-                }`}>
-                  {item.status_label}
-                </span>
+                <div>
+                  <span
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                      item.status === 'COMPLETED' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
+                    }`}
+                  >
+                    {item.status_label}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </Card>
-
     </div>
   )
 }

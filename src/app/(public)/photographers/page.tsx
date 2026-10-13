@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -23,33 +24,112 @@ import {
   ArrowUpDown,
   Navigation
 } from 'lucide-react'
-import { DEMO_PHOTOGRAPHERS } from '@/lib/data/mock-data'
+import { getApprovedProviders, type ApprovedProvider } from '@/lib/data/booking-store'
 import { PHOTOGRAPHY_CATEGORIES } from '@/lib/constants'
 import { formatVND } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
+import { CityLocationPicker } from '@/components/shared/city-location-picker'
+import type { Photographer } from '@/types'
 
-export default function PhotographersPage() {
-  const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<string>('all')
-  const [selectedDistrict, setSelectedDistrict] = useState<string>('all')
+function providerToPhotographer(p: ApprovedProvider): Photographer {
+  return {
+    id: p.id,
+    user_id: p.id,
+    slug: p.slug,
+    display_name: p.name,
+    bio: `Chuyên gia ${p.specialty} tại ${p.location}. Đã xác minh danh tính và thiết bị trên FLASHY.`,
+    tagline: p.specialty,
+    avatar_url: p.avatar,
+    banner_url: p.cover,
+    cover_image_url: p.cover,
+    city: p.city || 'Hồ Chí Minh',
+    district: p.district || 'Quận 1',
+    address: p.location,
+    latitude: 10.7769,
+    longitude: 106.7009,
+    specialties: p.specialty ? p.specialty.split(/[,·\s]+/).filter(Boolean) : ['Portrait', 'Street'],
+    equipment: ['Professional Camera', '50mm f/1.8', '85mm f/1.4'],
+    starting_price: p.starting_price || 99000,
+    average_rating: p.rating || 5.0,
+    review_count: p.reviews || 0,
+    completed_orders_count: 0,
+    is_verified: p.is_verified,
+    is_ready_to_work: true,
+    is_sponsored: p.is_sponsored || false,
+    badges: p.badge ? [p.badge] : ['⭐ Đã duyệt KYC'],
+    portfolio_photos: [p.cover],
+    service_radius_km: 15,
+    kyc_status: 'VERIFIED',
+    is_available: true,
+    is_approved: true,
+    is_featured: false,
+    avg_rating: p.rating || 5.0,
+    total_reviews: p.reviews || 0,
+    total_completed_bookings: 0,
+    created_at: p.created_at || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+}
+
+function PhotographersContent() {
+  const searchParams = useSearchParams()
+  const initialQ = searchParams?.get('q') || ''
+  const initialCity = searchParams?.get('city') || 'all'
+  const initialStyle = searchParams?.get('style') || 'all'
+
+  const [allPhotographers, setAllPhotographers] = useState<Photographer[]>([])
+  const [searchQuery, setSearchQuery] = useState(initialQ)
+  const [selectedCategory, setSelectedCategory] = useState<string>(initialStyle)
+  const [selectedDistrict, setSelectedDistrict] = useState<string>(initialCity)
   const [minRating, setMinRating] = useState<number>(0)
   const [verifiedOnly, setVerifiedOnly] = useState<boolean>(false)
   const [readyToWorkOnly, setReadyToWorkOnly] = useState<boolean>(false)
   const [sortBy, setSortBy] = useState<'rating' | 'price_asc' | 'price_desc' | 'popular'>('rating')
   const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid')
   const [showMobileFilters, setShowMobileFilters] = useState<boolean>(false)
-  const [selectedMapPhotographer, setSelectedMapPhotographer] = useState<string | null>(DEMO_PHOTOGRAPHERS[0]?.id || null)
+  const [selectedMapPhotographer, setSelectedMapPhotographer] = useState<string | null>(null)
 
-  const districts = useMemo(() => {
-    const list = Array.from(new Set(DEMO_PHOTOGRAPHERS.map(p => p.district).filter(Boolean)))
-    return list as string[]
+  useEffect(() => {
+    const load = () => {
+      const approved = getApprovedProviders()
+      setAllPhotographers(approved.map(providerToPhotographer))
+    }
+    load()
+    window.addEventListener('flashy_providers_updated', load)
+    window.addEventListener('storage', load)
+    return () => {
+      window.removeEventListener('flashy_providers_updated', load)
+      window.removeEventListener('storage', load)
+    }
   }, [])
 
+  useEffect(() => {
+    if (allPhotographers.length > 0 && !selectedMapPhotographer) {
+      setSelectedMapPhotographer(allPhotographers[0].id)
+    }
+  }, [allPhotographers, selectedMapPhotographer])
+
+  useEffect(() => {
+    if (searchParams) {
+      const q = searchParams.get('q')
+      const city = searchParams.get('city')
+      const style = searchParams.get('style')
+      if (q !== null) setSearchQuery(q)
+      if (city !== null) setSelectedDistrict(city)
+      if (style !== null) setSelectedCategory(style)
+    }
+  }, [searchParams])
+
+  const districts = useMemo(() => {
+    const list = Array.from(new Set(allPhotographers.map(p => p.district).filter(Boolean)))
+    return list as string[]
+  }, [allPhotographers])
+
   const filteredPhotographers = useMemo(() => {
-    return DEMO_PHOTOGRAPHERS.filter(p => {
+    return allPhotographers.filter(p => {
       // Search text
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase()
@@ -68,9 +148,14 @@ export default function PhotographersPage() {
         if (!hasSpec) return false
       }
 
-      // District
-      if (selectedDistrict !== 'all' && p.district !== selectedDistrict) {
-        return false
+      // Location / City / District
+      if (selectedDistrict !== 'all') {
+        const loc = selectedDistrict.toLowerCase().replace('tp. ', '').replace('thành phố ', '').trim()
+        const pDistrict = (p.district || '').toLowerCase()
+        const pCity = (p.city || '').toLowerCase()
+        const pAddress = (p.address || '').toLowerCase()
+        const match = pDistrict.includes(loc) || pCity.includes(loc) || pAddress.includes(loc) || loc.includes(pDistrict)
+        if (!match) return false
       }
 
       // Rating
@@ -273,21 +358,39 @@ export default function PhotographersPage() {
               )}
             </div>
 
-            {/* Khu vực / Quận huyện */}
+            {/* Khu vực / Thành phố theo Tab & Dropdown */}
             <div className="mb-6">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 block">
-                Khu vực (TP. Hồ Chí Minh)
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center justify-between">
+                <span>Địa điểm / Thành phố</span>
+                {selectedDistrict !== 'all' && (
+                  <span className="text-[10px] text-violet-600 font-bold">Đang lọc</span>
+                )}
               </label>
-              <select
-                value={selectedDistrict}
-                onChange={(e) => setSelectedDistrict(e.target.value)}
-                className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500"
-              >
-                <option value="all">Tất cả quận/huyện</option>
-                {districts.map(d => (
-                  <option key={d} value={d}>{d}</option>
+
+              {/* Quick Tabs */}
+              <div className="flex flex-wrap gap-1.5 mb-2.5">
+                {['all', 'TP. Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Quận 1', 'Quận 3'].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setSelectedDistrict(d)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                      selectedDistrict === d
+                        ? 'bg-violet-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {d === 'all' ? 'Tất cả' : d}
+                  </button>
                 ))}
-              </select>
+              </div>
+
+              <CityLocationPicker
+                value={selectedDistrict === 'all' ? '' : selectedDistrict}
+                onChange={(val) => setSelectedDistrict(val || 'all')}
+                placeholder="Chọn thành phố / quận..."
+                variant="input-field"
+              />
             </div>
 
             {/* Đánh giá tối thiểu */}
@@ -360,7 +463,32 @@ export default function PhotographersPage() {
 
           {/* Results Column */}
           <main className="col-span-1 lg:col-span-3">
-            {filteredPhotographers.length === 0 ? (
+            {allPhotographers.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border border-dashed border-slate-200 max-w-xl mx-auto shadow-sm">
+                <div className="w-16 h-16 rounded-2xl bg-violet-100 text-violet-600 flex items-center justify-center mx-auto mb-4">
+                  <Camera className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-black text-slate-900 mb-2">
+                  Chưa có nhiếp ảnh gia nào được duyệt KYC (Clean Slate)
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed mb-6">
+                  Hệ thống đang ở trạng thái tinh khiết không có dữ liệu mẫu giả định. FLASHY áp dụng quy trình thẩm định danh tính và thiết bị nghiêm ngặt. Khi thợ ảnh đăng ký và được quản trị viên duyệt KYC, danh sách sẽ hiển thị ngay tại đây.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <Link href="/become-photographer">
+                    <Button className="bg-brand text-white font-bold rounded-xl text-xs h-10 px-5 shadow-sm">
+                      <Sparkles className="w-4 h-4 mr-1.5" />
+                      Trở thành thợ chụp & Nộp KYC
+                    </Button>
+                  </Link>
+                  <Link href="/">
+                    <Button variant="outline" className="rounded-xl text-xs h-10 px-5 font-semibold">
+                      ← Về trang chủ
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            ) : filteredPhotographers.length === 0 ? (
               <div className="bg-white rounded-2xl p-12 text-center border border-slate-200">
                 <div className="w-16 h-16 rounded-full bg-violet-50 text-violet-600 flex items-center justify-center mx-auto mb-4">
                   <Camera className="w-8 h-8" />
@@ -590,7 +718,7 @@ export default function PhotographersPage() {
                   {/* Right Column: Selected Photographer Detail Drawer */}
                   <div className="p-5 border-l border-slate-200 flex flex-col justify-between bg-white">
                     {(() => {
-                      const p = DEMO_PHOTOGRAPHERS.find(x => x.id === selectedMapPhotographer) || DEMO_PHOTOGRAPHERS[0]
+                      const p = allPhotographers.find(x => x.id === selectedMapPhotographer) || allPhotographers[0]
                       if (!p) return null
                       return (
                         <div>
@@ -679,19 +807,15 @@ export default function PhotographersPage() {
                   </button>
                 </div>
 
-                {/* District */}
+                {/* District / City */}
                 <div className="mb-5">
-                  <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Quận / Huyện</label>
-                  <select
-                    value={selectedDistrict}
-                    onChange={(e) => setSelectedDistrict(e.target.value)}
-                    className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"
-                  >
-                    <option value="all">Tất cả quận/huyện</option>
-                    {districts.map(d => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
+                  <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Địa điểm / Thành phố</label>
+                  <CityLocationPicker
+                    value={selectedDistrict === 'all' ? '' : selectedDistrict}
+                    onChange={(val) => setSelectedDistrict(val || 'all')}
+                    placeholder="Chọn thành phố / quận..."
+                    variant="input-field"
+                  />
                 </div>
 
                 {/* Min rating */}
@@ -755,5 +879,19 @@ export default function PhotographersPage() {
         )}
       </AnimatePresence>
     </div>
+  )
+}
+
+export default function PhotographersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+          <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <PhotographersContent />
+    </Suspense>
   )
 }

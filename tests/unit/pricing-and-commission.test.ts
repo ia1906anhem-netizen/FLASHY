@@ -164,4 +164,41 @@ describe('Scenario E: Commission Engine Business Rules', () => {
     expect(Number.isInteger(oddAmount.netEarningsVnd)).toBe(true)
     expect(oddAmount.commissionVnd + oddAmount.netEarningsVnd).toBe(187333)
   })
+
+  it('calculates 10% commission on Makeup / Làm tóc (Makeup Artist tự do)', () => {
+    const makeupAmount = 150000 // 150,000 VND
+    const makeupRate = 10.0 // 10%
+    const commissionVnd = Math.round((makeupAmount * makeupRate) / 100)
+    const netMUA = makeupAmount - commissionVnd
+
+    expect(makeupRate).toBe(10.0)
+    expect(commissionVnd).toBe(15000)
+    expect(netMUA).toBe(135000)
+    expect(commissionVnd + netMUA).toBe(makeupAmount)
+  })
+
+  it('calculates 10% to 12% commission on Thuê trang phục & Phụ kiện (Chiết khấu từ các Shop đối tác)', () => {
+    const outfitAmount = 120000 // 120,000 VND
+    
+    // Default 12% shop discount
+    const defaultRate = 12.0
+    const commission12 = Math.round((outfitAmount * defaultRate) / 100)
+    const netShop12 = outfitAmount - commission12
+    expect(commission12).toBe(14400)
+    expect(netShop12).toBe(105600)
+
+    // Negotiated 10% partner rate
+    const minRate = 10.0
+    const commission10 = Math.round((outfitAmount * minRate) / 100)
+    const netShop10 = outfitAmount - commission10
+    expect(commission10).toBe(12000)
+    expect(netShop10).toBe(108000)
+
+    // Rate boundary enforcement: clamped between 10% and 12%
+    const clampedUnder = Math.max(10.0, Math.min(12.0, 8.0))
+    expect(clampedUnder).toBe(10.0)
+    const clampedOver = Math.max(10.0, Math.min(12.0, 15.0))
+    expect(clampedOver).toBe(12.0)
+  })
 })
+

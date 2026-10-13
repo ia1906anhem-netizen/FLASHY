@@ -35,6 +35,10 @@ export const DEFAULT_COMMISSION = {
   OUTDOOR: 9,         // 9%
   RETURNING_CUSTOMER: 4, // 4%
   NEW_PHOTOGRAPHER_FREE_BOOKINGS: 3, // first 3 bookings free
+  MAKEUP_HAIR: 10,    // 10% (Áp dụng cho Makeup Artist tự do)
+  OUTFIT_RENTAL_MIN: 10, // 10%
+  OUTFIT_RENTAL_MAX: 12, // 12% (Chiết khấu từ các Shop đối tác)
+  OUTFIT_RENTAL: 12,  // 12% mặc định
 } as const
 
 // Photography categories
@@ -122,15 +126,17 @@ export const BOOKING_STATUS_LABELS: Record<string, string> = {
 
 // Vietnamese cities
 export const VN_CITIES = [
-  'Hồ Chí Minh',
+  'TP. Hồ Chí Minh',
   'Hà Nội',
   'Đà Nẵng',
   'Cần Thơ',
   'Nha Trang',
   'Đà Lạt',
-  'Huế',
-  'Hội An',
   'Vũng Tàu',
+  'Huế',
+  'Quảng Ninh',
+  'Hải Phòng',
+  'Hội An',
   'Phú Quốc',
 ]
 

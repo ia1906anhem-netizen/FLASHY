@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Star, Camera, Image as ImageIcon, Flag, ChevronRight, Trash2 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -9,43 +9,7 @@ import { Button } from '@/components/ui/button'
 import { formatDateVN, formatVND } from '@/lib/utils'
 import { toast } from 'sonner'
 
-const DEMO_REVIEWS = [
-  {
-    id: '1',
-    photographer: {
-      name: 'Minh Tú Nguyễn',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=60&h=60&fit=crop',
-      slug: 'minh-tu-nguyen',
-    },
-    package: 'Quick Date',
-    booking_amount: 150000,
-    booking_date: '2026-09-20',
-    rating: 5,
-    content: 'Anh Minh Tú chụp rất chuyên nghiệp, ảnh ra đẹp hơn mình kỳ vọng nhiều. Góc chụp sáng tạo, biết cách tạo dáng tự nhiên. Nhất định sẽ quay lại!',
-    images: [
-      'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=120&h=120&fit=crop',
-      'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=120&h=120&fit=crop',
-    ],
-    created_at: '2026-09-22T10:00:00Z',
-    status: 'published',
-  },
-  {
-    id: '2',
-    photographer: {
-      name: 'Linh Chi Phạm',
-      avatar: 'https://images.unsplash.com/photo-1494790108755-2616b612b786?w=60&h=60&fit=crop',
-      slug: 'linh-chi-pham',
-    },
-    package: 'Flash Shot',
-    booking_amount: 99000,
-    booking_date: '2026-08-05',
-    rating: 4,
-    content: 'Chụp nhanh gọn, ảnh đẹp. Chỉ tiếc là ảnh giao hơi chậm so với deadline cam kết nhưng kết quả cuối cùng rất ổn.',
-    images: [],
-    created_at: '2026-08-07T14:30:00Z',
-    status: 'published',
-  },
-]
+
 
 function StarRating({ value }: { value: number }) {
   return (
@@ -60,8 +24,33 @@ function StarRating({ value }: { value: number }) {
   )
 }
 
+import { getStoredBookings } from '@/lib/data/booking-store'
+
 export default function CustomerReviewsPage() {
-  const [reviews] = useState(DEMO_REVIEWS)
+  const [reviews, setReviews] = useState<any[]>([])
+
+  useEffect(() => {
+    const bookings = getStoredBookings()
+    const reviewedBookings = bookings
+      .filter((b) => b.review)
+      .map((b) => ({
+        id: b.id,
+        photographer: {
+          name: b.photographer_name,
+          avatar: b.photographer_avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=60&h=60&fit=crop',
+          slug: b.photographer_slug || 'photographer',
+        },
+        package: b.package_name,
+        booking_amount: b.total_amount,
+        booking_date: b.shooting_date,
+        rating: b.review?.rating || 5,
+        content: b.review?.comment || '',
+        images: [],
+        created_at: b.review?.created_at || b.updated_at,
+        status: 'published',
+      }))
+    setReviews(reviewedBookings)
+  }, [])
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
@@ -149,7 +138,7 @@ export default function CustomerReviewsPage() {
                 {/* Review Images */}
                 {review.images.length > 0 && (
                   <div className="flex gap-2 mb-4">
-                    {review.images.map((img, idx) => (
+                    {review.images.map((img: string, idx: number) => (
                       <div key={idx} className="w-16 h-16 rounded-lg overflow-hidden border border-slate-200">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={img} alt="Review ảnh" className="w-full h-full object-cover" />

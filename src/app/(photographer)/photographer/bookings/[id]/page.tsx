@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -24,56 +24,82 @@ import {
   UploadCloud,
   Check,
   Send,
-  Navigation
+  Navigation,
+  PlayCircle,
+  Palette
 } from 'lucide-react'
 import { formatVND } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { getBookingById, updateBookingStatus, PersistentBooking } from '@/lib/data/booking-store'
+import { calculateFullBookingCommission } from '@/lib/utils/commission'
 
 export default function PhotographerBookingDetailPage() {
   const params = useParams()
   const router = useRouter()
   const bookingId = (params?.id as string) || 'BK-892104'
 
-  // Booking state simulation with status transitions
-  const [currentStatus, setCurrentStatus] = useState<
-    'CONFIRMED' | 'PHOTOGRAPHER_ARRIVED' | 'SHOOTING' | 'EDITING' | 'PHOTOS_DELIVERED' | 'COMPLETED'
-  >('CONFIRMED')
+  const [booking, setBooking] = useState<PersistentBooking | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [isLoaded, setIsLoaded] = useState(false)
 
-  const booking = {
-    id: bookingId,
-    customer: {
-      name: 'Nguyễn Thu Trang',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=256&q=80',
-      phone_masked: '098 •••• 124',
-      email_masked: 't••••g@gmail.com',
-      tier: 'Creator (350 Coins)',
-    },
-    package: {
-      name: 'Vibe Sài Gòn',
-      category: 'Street & Lifestyle',
-      duration: '2 - 3 giờ',
-      deliverables: '35 - 40 ảnh chỉnh màu + 10 ảnh retouch nâng cao',
-      base_price: 550000,
-    },
-    addons: [
-      { name: 'Makeup nhẹ tự nhiên', price: 150000 },
-    ],
-    total_price: 700000,
-    commission_rate: 0.06, // 6%
-    net_earnings: 658000,
-    date: '15/04/2026',
-    time: '15:30 - 18:00',
-    location: 'Bến Bạch Đằng & Bưu điện Q.1, TP. Hồ Chí Minh',
-    concept_notes: 'Trang phục tone be/trắng, chụp ngoại cảnh chiều hoàng hôn, phong cách điện ảnh Hong Kong cổ điển nhẹ nhàng.',
-    status_history: [
-      { status: 'Tạo đơn đặt lịch', time: '12/04 09:30', actor: 'Khách hàng' },
-      { status: 'Thanh toán Escrow qua MoMo', time: '12/04 09:35', actor: 'Hệ thống' },
-      { status: 'Thợ ảnh nhận lịch', time: '12/04 10:00', actor: 'Nhiếp ảnh gia' },
-    ],
+  useEffect(() => {
+    if (bookingId) {
+      const found = getBookingById(bookingId)
+      if (found) {
+        setBooking(found)
+      } else {
+        // Fallback demo booking
+        setBooking({
+          id: bookingId,
+          booking_number: bookingId,
+          photographer_id: 'p-1',
+          photographer_name: 'Minh Trí (TriStreet)',
+          customer_name: 'Nguyễn Thu Trang',
+          package_slug: 'vibe-sai-gon',
+          package_name: 'Vibe Sài Gòn',
+          shooting_date: '15/04/2026',
+          shooting_time: '15:30',
+          duration_minutes: 120,
+          location: 'Bến Bạch Đằng & Bưu điện Q.1, TP. Hồ Chí Minh',
+          concept_notes: 'Trang phục tone be/trắng, chụp ngoại cảnh hoàng hôn, màu film cổ điển.',
+          package_price: 550000,
+          addons_total: 150000,
+          total_amount: 700000,
+          deposit_amount: 210000,
+          remaining_amount: 490000,
+          payment_method: 'sandbox',
+          status: 'CONFIRMED',
+          status_label: 'Đã nhận lịch • Sắp diễn ra',
+          status_color: 'bg-emerald-50 text-emerald-700',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          selected_addons: [{ id: 'addon-1', name: 'Trang điểm & Làm tóc nhẹ nhàng', price: 150000 }],
+        })
+      }
+      setIsLoaded(true)
+    }
+  }, [bookingId])
+
+  if (!isLoaded || !booking) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
   }
+
+  // Calculate commission breakdown with special add-on rates (Makeup 10%, Outfit 10-12%)
+  const commissionBreakdown = calculateFullBookingCommission({
+    packageSlug: booking.package_slug,
+    packageAmountVnd: booking.package_price,
+    photographerCompletedCount: 5,
+    addons: (booking.selected_addons || []).map((a) => ({
+      name: a.name,
+      amountVnd: a.price,
+    })),
+  })
 
   const timelineSteps = [
     { key: 'CONFIRMED', label: 'Đã nhận lịch', desc: 'Sẵn sàng khởi hành' },
@@ -85,17 +111,20 @@ export default function PhotographerBookingDetailPage() {
   ]
 
   const getCurrentStepIndex = () => {
-    return timelineSteps.findIndex((s) => s.key === currentStatus)
+    return timelineSteps.findIndex((s) => s.key === booking.status)
   }
 
-  const advanceStatus = (nextStatus: typeof currentStatus, message: string) => {
-    setCurrentStatus(nextStatus)
-    setStatusMessage(message)
-    setTimeout(() => setStatusMessage(null), 3000)
+  const advanceStatus = (nextStatus: PersistentBooking['status'], message: string) => {
+    const updated = updateBookingStatus(booking.id, nextStatus)
+    if (updated) {
+      setBooking(updated)
+      setStatusMessage(message)
+      setTimeout(() => setStatusMessage(null), 3000)
+    }
   }
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6 max-w-5xl mx-auto p-6 md:p-8">
       {/* Top Breadcrumb & Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
@@ -107,254 +136,256 @@ export default function PhotographerBookingDetailPage() {
           </Link>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-slate-900">Chi tiết đơn {booking.id}</h1>
+              <h1 className="text-xl font-bold text-slate-900">Chi tiết đơn #{booking.booking_number}</h1>
               <Badge className="bg-violet-100 text-violet-800 border-violet-200">
-                {booking.package.name}
+                Gói {booking.package_name}
               </Badge>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">Thời gian hẹn: {booking.date} lúc {booking.time}</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Thời gian hẹn: {booking.shooting_date} lúc {booking.shooting_time}
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2.5">
-          <Link href="/photographer/messages">
-            <Button variant="outline" size="sm" className="gap-2 text-slate-700">
+          <Link href={`/photographer/messages?bookingId=${booking.id}`}>
+            <Button variant="outline" size="sm" className="gap-2 text-slate-700 rounded-xl text-xs font-bold h-9">
               <MessageCircle className="h-4 w-4 text-violet-600" />
               Nhắn tin với khách
-            </Button>
-          </Link>
-          <Link href={`/photographer/bookings/${booking.id}/delivery`}>
-            <Button size="sm" className="gap-2 bg-violet-600 hover:bg-violet-700 text-white">
-              <UploadCloud className="h-4 w-4" />
-              Tải ảnh bàn giao
             </Button>
           </Link>
         </div>
       </div>
 
       {statusMessage && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center gap-2">
-          <CheckCircle2 className="h-5 w-5 text-emerald-600 flex-shrink-0" />
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2 font-bold">
+          <CheckCircle2 className="h-4 w-4 text-emerald-600 flex-shrink-0" />
           <span>{statusMessage}</span>
         </div>
       )}
 
       {/* Status Progress Bar */}
-      <Card className="border-slate-200">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-slate-900">Tiến độ buổi chụp ảnh</h2>
-            <span className="text-xs text-violet-600 font-medium">
-              Trạng thái hiện tại: {timelineSteps.find((s) => s.key === currentStatus)?.label}
-            </span>
-          </div>
+      <Card className="rounded-3xl border-slate-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-bold text-slate-900">Tiến độ buổi chụp ảnh thực tế</h2>
+          <span className="text-xs text-violet-700 font-bold bg-violet-50 px-2.5 py-1 rounded-full border border-violet-200">
+            {booking.status_label}
+          </span>
+        </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-            {timelineSteps.map((step, idx) => {
-              const currentIdx = getCurrentStepIndex()
-              const isPast = idx < currentIdx
-              const isCurrent = idx === currentIdx
-              return (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
+          {timelineSteps.map((step, idx) => {
+            const currentIdx = getCurrentStepIndex()
+            const isPast = idx < currentIdx
+            const isCurrent = idx === currentIdx
+            return (
+              <div
+                key={step.key}
+                className={`p-3 rounded-2xl border text-center transition-all ${
+                  isCurrent
+                    ? 'border-violet-600 bg-violet-50 text-violet-900 shadow-xs ring-2 ring-violet-500/20'
+                    : isPast
+                    ? 'border-emerald-200 bg-emerald-50/50 text-emerald-800'
+                    : 'border-slate-200 bg-slate-50/50 text-slate-400'
+                }`}
+              >
                 <div
-                  key={step.key}
-                  className={`p-3 rounded-xl border text-center transition-all ${
-                    isCurrent
-                      ? 'bg-violet-50 border-violet-300 shadow-sm'
-                      : isPast
-                      ? 'bg-emerald-50/50 border-emerald-200 text-emerald-800'
-                      : 'bg-slate-50 border-slate-200 text-slate-400'
+                  className={`w-6 h-6 rounded-full mx-auto mb-1.5 flex items-center justify-center text-xs font-bold ${
+                    isPast
+                      ? 'bg-emerald-600 text-white'
+                      : isCurrent
+                      ? 'bg-violet-600 text-white'
+                      : 'bg-slate-200 text-slate-500'
                   }`}
                 >
-                  <div
-                    className={`w-6 h-6 mx-auto rounded-full flex items-center justify-center text-xs font-bold mb-1.5 ${
-                      isCurrent
-                        ? 'bg-violet-600 text-white'
-                        : isPast
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-slate-200 text-slate-500'
-                    }`}
-                  >
-                    {isPast ? <Check className="h-3.5 w-3.5" /> : idx + 1}
-                  </div>
-                  <p className="text-xs font-semibold text-slate-800 line-clamp-1">{step.label}</p>
-                  <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{step.desc}</p>
+                  {isPast ? '✓' : idx + 1}
                 </div>
-              )
-            })}
+                <div className="text-xs font-bold leading-tight">{step.label}</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">{step.desc}</div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Quick Action Progression Controls */}
+        <div className="mt-6 pt-5 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-slate-500 font-medium">
+            Bấm chuyển bước để thông báo tức thời cho khách hàng qua ứng dụng:
           </div>
 
-          {/* Action Buttons for State Transitions */}
-          <div className="mt-6 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-slate-500">
-              Cập nhật trạng thái tức thì giúp khách hàng theo dõi vị trí và tiến trình buổi chụp.
-            </p>
-            <div className="flex items-center gap-2">
-              {currentStatus === 'CONFIRMED' && (
-                <Button
-                  onClick={() =>
-                    advanceStatus('PHOTOGRAPHER_ARRIVED', 'Đã cập nhật: Bạn đã đến điểm hẹn!')
-                  }
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs gap-1.5"
-                >
-                  <Navigation className="h-3.5 w-3.5" />
-                  Báo: Tôi đã đến điểm hẹn
-                </Button>
-              )}
-              {currentStatus === 'PHOTOGRAPHER_ARRIVED' && (
-                <Button
-                  onClick={() => advanceStatus('SHOOTING', 'Đã bắt đầu bấm máy buổi chụp!')}
-                  className="bg-violet-600 hover:bg-violet-700 text-white text-xs gap-1.5"
-                >
-                  <Camera className="h-3.5 w-3.5" />
-                  Bắt đầu buổi chụp (Bấm máy)
-                </Button>
-              )}
-              {currentStatus === 'SHOOTING' && (
-                <Button
-                  onClick={() =>
-                    advanceStatus('EDITING', 'Buổi chụp hoàn tất, chuyển sang giai đoạn hậu kỳ!')
-                  }
-                  className="bg-purple-600 hover:bg-purple-700 text-white text-xs gap-1.5"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" />
-                  Kết thúc chụp, bắt đầu hậu kỳ
-                </Button>
-              )}
-              {currentStatus === 'EDITING' && (
-                <Link href={`/photographer/bookings/${booking.id}/delivery`}>
-                  <Button className="bg-violet-600 hover:bg-violet-700 text-white text-xs gap-1.5">
-                    <UploadCloud className="h-3.5 w-3.5" />
-                    Chuyển đến trang tải ảnh bàn giao
-                  </Button>
-                </Link>
-              )}
-            </div>
+          <div className="flex flex-wrap gap-2">
+            {booking.status === 'CONFIRMED' && (
+              <Button
+                size="sm"
+                onClick={() => advanceStatus('PHOTOGRAPHER_ARRIVED', 'Đã check-in điểm hẹn thành công!')}
+                className="bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold h-9"
+              >
+                <Navigation className="h-3.5 w-3.5 mr-1" />
+                Tôi đã đến điểm hẹn
+              </Button>
+            )}
+
+            {booking.status === 'PHOTOGRAPHER_ARRIVED' && (
+              <Button
+                size="sm"
+                onClick={() => advanceStatus('SHOOTING', 'Đã bắt đầu bấm máy cùng khách hàng!')}
+                className="bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold h-9"
+              >
+                <PlayCircle className="h-3.5 w-3.5 mr-1" />
+                Bắt đầu chụp ảnh
+              </Button>
+            )}
+
+            {booking.status === 'SHOOTING' && (
+              <Button
+                size="sm"
+                onClick={() => advanceStatus('EDITING', 'Buổi chụp kết thúc tốt đẹp. Bắt đầu giai đoạn hậu kỳ!')}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold h-9"
+              >
+                <Palette className="h-3.5 w-3.5 mr-1" />
+                Kết thúc chụp & Bắt đầu chỉnh màu
+              </Button>
+            )}
+
+            {booking.status === 'EDITING' && (
+              <Button
+                size="sm"
+                onClick={() =>
+                  advanceStatus(
+                    'PHOTOS_DELIVERED',
+                    'Đã giao link ảnh đám mây thành công! Cửa sổ 48h kiểm duyệt bắt đầu tính.'
+                  )
+                }
+                className="bg-brand text-white hover:opacity-90 rounded-xl text-xs font-bold h-9 shadow-md"
+              >
+                <UploadCloud className="h-3.5 w-3.5 mr-1" />
+                Bàn giao bộ ảnh (Bật đếm ngược 48h)
+              </Button>
+            )}
+
+            {booking.status === 'PHOTOS_DELIVERED' && (
+              <div className="text-xs text-violet-700 font-bold bg-violet-50 px-3 py-1.5 rounded-xl border border-violet-200">
+                ⏳ Đang chờ khách duyệt trong 48h hoặc tự động giải ngân sau 48h
+              </div>
+            )}
           </div>
-        </CardContent>
+        </div>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Details */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Customer & Location Info */}
-          <Card className="border-slate-200">
-            <CardContent className="p-6 space-y-4">
-              <h3 className="text-sm font-semibold text-slate-900">Thông tin khách hàng & Điểm hẹn</h3>
+      {/* Main Info Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Left: Customer & Session info */}
+        <div className="md:col-span-2 space-y-6">
+          <Card className="rounded-3xl border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">
+              Thông Tin Khách Hàng & Điểm Hẹn
+            </h3>
 
-              <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="relative w-12 h-12 rounded-full overflow-hidden bg-slate-200">
-                    <Image
-                      src={booking.customer.avatar}
-                      alt={booking.customer.name}
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-900">{booking.customer.name}</h4>
-                    <p className="text-xs text-slate-500">Hạng: {booking.customer.tier}</p>
-                    <p className="text-xs text-slate-400 font-mono mt-0.5">SĐT: {booking.customer.phone_masked}</p>
-                  </div>
+            <div className="flex items-center gap-3.5 mb-5 pb-4 border-b border-slate-100">
+              <div className="relative w-12 h-12 rounded-2xl overflow-hidden bg-slate-100 flex-shrink-0">
+                <Image
+                  src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=256&q=80"
+                  alt={booking.customer_name}
+                  fill
+                  className="object-cover"
+                />
+              </div>
+              <div>
+                <h4 className="font-bold text-slate-900 text-sm">{booking.customer_name}</h4>
+                <p className="text-xs text-slate-500">Khách hàng FLASHY • Đã thanh toán cọc Escrow</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-700">
+              <div className="flex items-start gap-2.5">
+                <MapPin className="h-4 w-4 text-violet-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-slate-900 block">{booking.location}</span>
+                  <span className="text-[11px] text-slate-400">TP. Hồ Chí Minh</span>
                 </div>
-
-                <Link href="/photographer/messages">
-                  <Button size="sm" variant="outline" className="gap-1.5 text-xs">
-                    <MessageCircle className="h-3.5 w-3.5 text-violet-600" />
-                    Trò chuyện
-                  </Button>
-                </Link>
               </div>
 
-              <div className="p-3.5 rounded-xl bg-violet-50/50 border border-violet-100 text-xs space-y-1.5">
-                <div className="flex items-start gap-2">
-                  <MapPin className="h-4 w-4 text-violet-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-semibold text-slate-800">Địa điểm hẹn: </span>
-                    <span className="text-slate-700">{booking.location}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 pl-6 text-slate-500">
-                  <Clock className="h-3.5 w-3.5" />
-                  <span>Thời gian: {booking.date} | {booking.time}</span>
-                </div>
+              <div className="flex items-center gap-2.5">
+                <Calendar className="h-4 w-4 text-violet-600 flex-shrink-0" />
+                <span>
+                  {booking.shooting_date} • Khung giờ: {booking.shooting_time}
+                </span>
               </div>
 
               {booking.concept_notes && (
-                <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 text-xs">
-                  <p className="font-semibold text-slate-800 mb-1">Ghi chú ý tưởng & Concept:</p>
-                  <p className="text-slate-600 leading-relaxed">{booking.concept_notes}</p>
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-slate-600">
+                  <strong className="text-slate-900 block mb-1">Ghi chú concept của khách:</strong>
+                  {booking.concept_notes}
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-          {/* Deliverables details */}
-          <Card className="border-slate-200">
-            <CardContent className="p-6">
-              <h3 className="text-sm font-semibold text-slate-900 mb-3">Quy chuẩn bàn giao sản phẩm</h3>
-              <div className="space-y-2 text-xs">
-                <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50">
-                  <span className="text-slate-600">Gói chụp lựa chọn:</span>
-                  <span className="font-semibold text-slate-900">{booking.package.name} ({booking.package.duration})</span>
-                </div>
-                <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50">
-                  <span className="text-slate-600">Số lượng ảnh cam kết:</span>
-                  <span className="font-semibold text-slate-900">{booking.package.deliverables}</span>
-                </div>
-                <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50">
-                  <span className="text-slate-600">Hạn chót trả ảnh dự kiến:</span>
-                  <span className="font-semibold text-violet-700">Trong vòng 48h sau buổi chụp</span>
-                </div>
-              </div>
-            </CardContent>
+            </div>
           </Card>
         </div>
 
-        {/* Right Column: Earnings & Escrow Breakdown */}
+        {/* Right: Authoritative Earnings Breakdown with New Addon Commissions */}
         <div className="space-y-6">
-          <Card className="border-slate-200">
-            <CardContent className="p-6">
-              <h3 className="text-sm font-semibold text-slate-900 mb-4">Chi tiết thu nhập & Escrow</h3>
+          <Card className="rounded-3xl border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
+              <DollarSign className="w-4 h-4 text-emerald-600" />
+              Sổ Cái Thù Lao & Hoa Hồng
+            </h3>
 
-              <div className="space-y-2.5 text-xs pb-4 border-b border-slate-100">
-                <div className="flex justify-between text-slate-600">
-                  <span>Giá gói chụp ({booking.package.name})</span>
-                  <span>{formatVND(booking.package.base_price)}</span>
-                </div>
-                {booking.addons.map((ad, i) => (
-                  <div key={i} className="flex justify-between text-slate-600">
-                    <span>{ad.name}</span>
-                    <span>{formatVND(ad.price)}</span>
-                  </div>
-                ))}
-                <div className="flex justify-between font-semibold text-slate-900 pt-1">
-                  <span>Tổng giá trị đơn</span>
-                  <span>{formatVND(booking.total_price)}</span>
-                </div>
+            <div className="space-y-2.5 text-xs text-slate-600">
+              <div className="flex justify-between">
+                <span>Gói chụp ({booking.package_name}):</span>
+                <span className="font-bold text-slate-900">{formatVND(booking.package_price)}</span>
+              </div>
+              <div className="flex justify-between text-[11px] text-slate-400 pl-2">
+                <span>• Phí sàn chụp ({commissionBreakdown.packageRatePercent}%):</span>
+                <span>-{formatVND(commissionBreakdown.packageCommissionVnd)}</span>
               </div>
 
-              <div className="space-y-2.5 text-xs py-4 border-b border-slate-100">
-                <div className="flex justify-between text-slate-500">
-                  <span>Phí sàn Flashy (6%)</span>
-                  <span className="text-rose-600">-{formatVND(booking.total_price * booking.commission_rate)}</span>
+              {/* Addons breakdown */}
+              {commissionBreakdown.addonCommissions.length > 0 && (
+                <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                  <div className="font-bold text-slate-700">Dịch vụ phụ trợ / Đối tác:</div>
+                  {commissionBreakdown.addonCommissions.map((ad, i) => (
+                    <div key={i} className="text-[11px] pl-2 space-y-0.5">
+                      <div className="flex justify-between text-slate-800">
+                        <span>• {ad.name}:</span>
+                        <span>+{formatVND(ad.amountVnd)}</span>
+                      </div>
+                      <div className="flex justify-between text-slate-400 text-[10px]">
+                        <span>
+                          {ad.type === 'makeup_hair'
+                            ? 'Hoa hồng MUA tự do (10%):'
+                            : ad.type === 'outfit_rental'
+                            ? `Chiết khấu Shop (${ad.ratePercent}%):`
+                            : `Phí sàn (${ad.ratePercent}%):`}
+                        </span>
+                        <span>-{formatVND(ad.commissionVnd)}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex justify-between items-center pt-1 font-bold text-sm text-emerald-600">
-                  <span>Thực nhận (Net payout):</span>
-                  <span>{formatVND(booking.net_earnings)}</span>
-                </div>
+              )}
+
+              <div className="pt-2 border-t border-slate-100 flex justify-between font-bold text-slate-900 text-sm">
+                <span>Tổng đơn đặt:</span>
+                <span>{formatVND(booking.total_amount)}</span>
               </div>
 
-              <div className="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800 space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold">
-                  <ShieldCheck className="h-4 w-4 text-amber-600" />
-                  Bảo chứng ký quỹ Escrow
-                </div>
-                <p>
-                  Tiền đã được khách thanh toán và giữ an toàn tại tài khoản bảo chứng. Sau khi bàn giao ảnh 48 giờ và khách không khiếu nại, tiền sẽ tự động chuyển vào số dư ví của bạn.
-                </p>
+              <div className="flex justify-between text-rose-600 font-semibold text-xs">
+                <span>Tổng phí hoa hồng sàn:</span>
+                <span>-{formatVND(commissionBreakdown.totalPlatformCommissionVnd)}</span>
               </div>
-            </CardContent>
+
+              <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 flex justify-between items-center text-emerald-900">
+                <span className="font-bold text-xs">Thực nhận về ví:</span>
+                <span className="font-black text-base text-emerald-700">
+                  {formatVND(commissionBreakdown.totalNetPayoutVnd)}
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-3 mt-3 border-t border-slate-100 text-[10px] text-slate-400">
+              🛡️ Tiền cọc 30% ({formatVND(booking.deposit_amount)}) hiện đang được khóa an toàn tại Quỹ Ký Quỹ Escrow FLASHY.
+            </div>
           </Card>
         </div>
       </div>

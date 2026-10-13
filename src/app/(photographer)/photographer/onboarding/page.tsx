@@ -20,6 +20,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { addOrUpdateApprovedProvider } from '@/lib/data/booking-store'
 
 export default function PhotographerOnboardingPage() {
   const router = useRouter()
@@ -35,6 +36,23 @@ export default function PhotographerOnboardingPage() {
   const [kycSubmitted, setKycSubmitted] = useState(false)
 
   const handleFinishOnboarding = () => {
+    try {
+      addOrUpdateApprovedProvider({
+        name: displayName || 'Minh Trí Visuals',
+        location: `${district}, TP. Hồ Chí Minh`,
+        district,
+        city: 'Hồ Chí Minh',
+        specialty: specialties.join(' · ') || 'Street · Couple',
+        rating: 5.0,
+        reviews: 0,
+        starting_price: 120000,
+        is_verified: true,
+        kyc_status: 'VERIFIED',
+        badge: '⭐ Đã duyệt KYC',
+      })
+    } catch (err) {
+      console.error('Failed to save provider on onboarding', err)
+    }
     router.push('/photographer/dashboard')
   }
 

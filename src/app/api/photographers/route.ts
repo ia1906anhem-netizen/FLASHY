@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { DEMO_PHOTOGRAPHERS } from '@/lib/data/mock-data'
 import { createClient } from '@/lib/supabase/server'
 
 export async function GET(request: NextRequest) {
@@ -26,22 +25,13 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ data, error: null })
       }
     } catch (e) {
-      // Fallback to rich demo data
+      // Database not available or table empty
     }
 
-    // Filter demo data
-    let result = DEMO_PHOTOGRAPHERS
-    if (district && district !== 'all') {
-      result = result.filter(p => p.district === district)
-    }
-    if (query) {
-      const q = query.toLowerCase()
-      result = result.filter(p => p.display_name.toLowerCase().includes(q) || p.bio?.toLowerCase().includes(q))
-    }
-
+    // Default clean slate: empty array
     return NextResponse.json({
-      data: result,
-      total: result.length,
+      data: [],
+      total: 0,
       error: null,
     })
   } catch (err: any) {

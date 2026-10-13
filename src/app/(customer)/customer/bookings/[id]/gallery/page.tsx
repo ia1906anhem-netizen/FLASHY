@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { updateBookingStatus, addBookingReview, getBookingById } from '@/lib/data/booking-store'
 
 export default function CustomerGalleryPage() {
   const params = useParams()
@@ -106,6 +107,13 @@ export default function CustomerGalleryPage() {
   const handleAcceptDelivery = () => {
     setIsAccepted(true)
     setShowAcceptSuccess(true)
+    updateBookingStatus(bookingId, 'ACCEPTED')
+    try {
+      const currentCoins = Number(localStorage.getItem('flashy_user_coins') || '0')
+      localStorage.setItem('flashy_user_coins', String(currentCoins + 50))
+      window.dispatchEvent(new Event('flashy_coins_updated'))
+    } catch {}
+
     setTimeout(() => {
       setShowAcceptSuccess(false)
       setShowReviewModal(true)
@@ -115,6 +123,7 @@ export default function CustomerGalleryPage() {
   const handleSubmitReview = (e: React.FormEvent) => {
     e.preventDefault()
     setReviewSubmitted(true)
+    addBookingReview(bookingId, reviewRating, reviewText)
     setTimeout(() => {
       setShowReviewModal(false)
     }, 1500)
