@@ -4,36 +4,30 @@
 
 FLASHY defines 4 standard service packages, allowing photographers to configure custom pricing within permitted bounds:
 
-| Package | Typical Duration | Base Price Range (VND) | Deliverable Standards | Retouch Quota | Delivery Deadline |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **Flash Shot** | 15–20 minutes | 79,000 – 99,000 | 1 location • All original RAW/JPG (~30) • 3–5 color-edited photos | 0 photos | 2 days |
-| **Quick Date** | 30–60 minutes | 150,000 – 300,000 | 1–2 nearby spots (&lt;3km) • All original (~100) • 15 color-edited photos | 5 photos | 3 days |
-| **Vibe Sài Gòn** | 2–3 hours | 400,000 – 700,000 | 2–3 urban locations • All original (~250) • 40 color-edited photos | 10 photos | 4 days |
-| **Outdoor / Dã ngoại** | Half-day (4h) | 800,000 – 1,500,000 | Concept shoot • All original (~400) • 60 color-edited photos | 20 photos | 5 days |
+| Package | Typical Duration | Base Price (VND) | Deliverable Standards | Retouch Quota | Delivery Deadline | Equipment |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **FLASHY EXPRESS** | 45–60 minutes | 350,000 | 5–10 color-edited photos + All originals | 0 photos | Same-day / AirDrop / Drive | Flagship Phone |
+| **FLASHY CASUAL** | 90 minutes | 800,000 | 10 color-edited photos (5 retouch) + All originals | 5 photos | 3–5 days | Basic Camera |
+| **FLASHY PRO** | 120 minutes | 1,500,000 | 15 color-edited photos (10 retouch) + All originals | 10 photos | 5–7 days | Pro Camera + Reflector |
+| **FLASHY SIGNATURE** | 150 minutes | 3,200,000 | 20 color-edited photos (15 retouch) + All originals | 15 photos | 7–10 days | High-end Camera + Studio Lights |
 
 ### Add-On Services (Tùy chọn cộng thêm)
-- **Makeup & Hair:** 100,000 – 250,000 VND (Default: 150,000 VND).
-- **Outfit Rental:** 120,000 VND per concept set.
+- **Trang điểm & Làm tóc:** 150,000 VND (Makeup look tự nhiên phong cách Hàn Quốc/Daily).
+- **Thuê Trang Phục / Áo Dài:** 120,000 VND per concept set.
 - **Express 24h Delivery:** 100,000 VND priority queue.
 - **Additional Retouch:** 80,000 VND per 5 additional photos.
 
 ---
 
-## 2. Commission Engine & Precedence Rules
+## 2. Commission Engine & Precedence Rules (CP3 Standard)
 
-FLASHY operates a tiered commission engine with snapshotting on order creation:
+FLASHY operates a fixed 15% platform take rate with transparent financial ledger:
 
-### Precedence Hierarchy
-1. **Priority 1 — Star of the Quarter Promotional Benefit:** 0% commission on the next 10 eligible bookings.
-2. **Priority 2 — New Photographer Welcome Incentive:** 0% commission on the photographer's first 3 completed bookings.
-3. **Priority 3 — Returning Customer Retention Rate:** 4.0% commission when an existing customer books the same photographer.
-4. **Priority 4 — Standard Package Commission:**
-   - *Flash Shot & Quick Date:* 6.0% platform fee.
-   - *Vibe Sài Gòn & Outdoor:* 9.0% platform fee.
-
-### Add-On & Partner Commission Rules
-5. **Dịch vụ Makeup / Làm tóc:** 10.0% hoa hồng nền tảng (Áp dụng cho Makeup Artist tự do liên kết sàn).
-6. **Dịch vụ Thuê trang phục & Phụ kiện:** 10.0% – 12.0% (Chiết khấu trích từ các Shop thời trang đối tác liên kết).
+### Core Rules
+1. **Fixed Platform Take Rate (15%):** Sàn FLASHY trích cố định 15% từ giá gói dịch vụ gốc cho cả 4 gói CP3.
+2. **Photographer Net Payout (85%):** Nhiếp ảnh gia nhận trọn 85% thù lao giá gói gốc.
+3. **Add-Ons & Travel Policy (100% to Photographer):** Nhiếp ảnh gia nhận trọn 100% phụ phí Add-ons / di chuyển ngoại thành. FLASHY không trích hoa hồng trên phụ phí (0% commission).
+4. **Star of the Quarter Incentive:** 0% commission trong tháng thưởng dành cho thợ đạt danh hiệu xuất sắc (≥30 đơn hoàn thành & Rating ≥4.8).
 
 *Note: All monetary transactions are calculated as integer Vietnamese Dong (VND) amounts. Floating-point calculations are strictly forbidden.*
 

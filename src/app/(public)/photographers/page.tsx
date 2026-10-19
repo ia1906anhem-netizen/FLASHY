@@ -22,7 +22,9 @@ import {
   Award,
   Sparkles,
   ArrowUpDown,
-  Navigation
+  Navigation,
+  Loader2,
+  Compass
 } from 'lucide-react'
 import { getApprovedProviders, type ApprovedProvider } from '@/lib/data/booking-store'
 import { PHOTOGRAPHY_CATEGORIES } from '@/lib/constants'
@@ -31,10 +33,30 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
-import { CityLocationPicker } from '@/components/shared/city-location-picker'
+import { CityLocationPicker, type SelectedLocationData } from '@/components/shared/city-location-picker'
+import {
+  calculateDistanceKm,
+  formatDistance,
+  getCurrentUserCoordinates,
+  findNearestDistrict,
+  getCoordinatesByLocation,
+  type Coordinates
+} from '@/lib/geolocation'
 import type { Photographer } from '@/types'
 
-function providerToPhotographer(p: ApprovedProvider): Photographer {
+export type PhotographerWithDistance = Photographer & {
+  distanceKm?: number
+}
+
+function providerToPhotographer(p: ApprovedProvider): PhotographerWithDistance {
+  // Lấy tọa độ chuẩn xác theo quận/huyện của thợ ảnh
+  const baseCoords = getCoordinatesByLocation(p.district || p.city || p.location)
+  
+  // Tạo độ phân tán nhẹ (jitter) theo hash của ID để thợ cùng quận không trùng khít tọa độ
+  const seed = (p.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 20) - 10
+  const jitterLat = seed * 0.0015
+  const jitterLng = ((seed * 7) % 20 - 10) * 0.0015
+
   return {
     id: p.id,
     user_id: p.id,
@@ -48,11 +70,11 @@ function providerToPhotographer(p: ApprovedProvider): Photographer {
     city: p.city || 'Hồ Chí Minh',
     district: p.district || 'Quận 1',
     address: p.location,
-    latitude: 10.7769,
-    longitude: 106.7009,
+    latitude: baseCoords.lat + jitterLat,
+    longitude: baseCoords.lng + jitterLng,
     specialties: p.specialty ? p.specialty.split(/[,·\s]+/).filter(Boolean) : ['Portrait', 'Street'],
     equipment: ['Professional Camera', '50mm f/1.8', '85mm f/1.4'],
-    starting_price: p.starting_price || 99000,
+    starting_price: p.starting_price || 350000,
     average_rating: p.rating || 5.0,
     review_count: p.reviews || 0,
     completed_orders_count: 0,
@@ -80,17 +102,22 @@ function PhotographersContent() {
   const initialCity = searchParams?.get('city') || 'all'
   const initialStyle = searchParams?.get('style') || 'all'
 
-  const [allPhotographers, setAllPhotographers] = useState<Photographer[]>([])
+  const [allPhotographers, setAllPhotographers] = useState<PhotographerWithDistance[]>([])
   const [searchQuery, setSearchQuery] = useState(initialQ)
   const [selectedCategory, setSelectedCategory] = useState<string>(initialStyle)
   const [selectedDistrict, setSelectedDistrict] = useState<string>(initialCity)
   const [minRating, setMinRating] = useState<number>(0)
   const [verifiedOnly, setVerifiedOnly] = useState<boolean>(false)
   const [readyToWorkOnly, setReadyToWorkOnly] = useState<boolean>(false)
-  const [sortBy, setSortBy] = useState<'rating' | 'price_asc' | 'price_desc' | 'popular'>('rating')
+  const [sortBy, setSortBy] = useState<'rating' | 'distance' | 'price_asc' | 'price_desc' | 'popular'>('rating')
   const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid')
   const [showMobileFilters, setShowMobileFilters] = useState<boolean>(false)
   const [selectedMapPhotographer, setSelectedMapPhotographer] = useState<string | null>(null)
+  
+  // Geolocation & Radius Filtering State
+  const [userCoords, setUserCoords] = useState<Coordinates | null>(null)
+  const [isLocatingUser, setIsLocatingUser] = useState(false)
+  const [maxRadiusKm, setMaxRadiusKm] = useState<number>(0) // 0 = Không giới hạn
 
   useEffect(() => {
     const load = () => {
@@ -117,11 +144,38 @@ function PhotographersContent() {
       const q = searchParams.get('q')
       const city = searchParams.get('city')
       const style = searchParams.get('style')
+      const lat = searchParams.get('lat')
+      const lng = searchParams.get('lng')
+      const nearby = searchParams.get('nearby')
+
       if (q !== null) setSearchQuery(q)
       if (city !== null) setSelectedDistrict(city)
       if (style !== null) setSelectedCategory(style)
+
+      if (lat && lng) {
+        setUserCoords({
+          latitude: parseFloat(lat),
+          longitude: parseFloat(lng)
+        })
+        if (nearby === 'true') {
+          setSortBy('distance')
+        }
+      }
     }
   }, [searchParams])
+
+  const handleLocateUser = async () => {
+    setIsLocatingUser(true)
+    try {
+      const coords = await getCurrentUserCoordinates()
+      setUserCoords(coords)
+      setSortBy('distance')
+    } catch (err: any) {
+      alert(err?.message || 'Không thể lấy vị trí hiện tại. Vui lòng cho phép quyền định vị trong trình duyệt.')
+    } finally {
+      setIsLocatingUser(false)
+    }
+  }
 
   const districts = useMemo(() => {
     const list = Array.from(new Set(allPhotographers.map(p => p.district).filter(Boolean)))
@@ -129,59 +183,84 @@ function PhotographersContent() {
   }, [allPhotographers])
 
   const filteredPhotographers = useMemo(() => {
-    return allPhotographers.filter(p => {
-      // Search text
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase()
-        const matchName = p.display_name.toLowerCase().includes(q)
-        const matchBio = p.bio?.toLowerCase().includes(q)
-        const matchDistrict = p.district?.toLowerCase().includes(q)
-        const matchSpecialties = p.specialties?.some(s => s.toLowerCase().includes(q))
-        if (!matchName && !matchBio && !matchDistrict && !matchSpecialties) return false
-      }
+    return allPhotographers
+      .map(p => {
+        let distanceKm: number | undefined = undefined
+        if (userCoords && p.latitude && p.longitude) {
+          distanceKm = calculateDistanceKm(
+            userCoords.latitude,
+            userCoords.longitude,
+            p.latitude,
+            p.longitude
+          )
+        }
+        return {
+          ...p,
+          distanceKm
+        }
+      })
+      .filter(p => {
+        // Lọc theo bán kính tối đa
+        if (maxRadiusKm > 0 && p.distanceKm !== undefined && p.distanceKm > maxRadiusKm) {
+          return false
+        }
 
-      // Category
-      if (selectedCategory !== 'all') {
-        const catObj = PHOTOGRAPHY_CATEGORIES.find(c => c.value === selectedCategory)
-        const catLabel = catObj ? catObj.label.toLowerCase() : selectedCategory.toLowerCase()
-        const hasSpec = p.specialties?.some(s => s.toLowerCase().includes(catLabel) || catLabel.includes(s.toLowerCase()))
-        if (!hasSpec) return false
-      }
+        // Search text
+        if (searchQuery.trim()) {
+          const q = searchQuery.toLowerCase()
+          const matchName = p.display_name.toLowerCase().includes(q)
+          const matchBio = p.bio?.toLowerCase().includes(q)
+          const matchDistrict = p.district?.toLowerCase().includes(q)
+          const matchSpecialties = p.specialties?.some(s => s.toLowerCase().includes(q))
+          if (!matchName && !matchBio && !matchDistrict && !matchSpecialties) return false
+        }
 
-      // Location / City / District
-      if (selectedDistrict !== 'all') {
-        const loc = selectedDistrict.toLowerCase().replace('tp. ', '').replace('thành phố ', '').trim()
-        const pDistrict = (p.district || '').toLowerCase()
-        const pCity = (p.city || '').toLowerCase()
-        const pAddress = (p.address || '').toLowerCase()
-        const match = pDistrict.includes(loc) || pCity.includes(loc) || pAddress.includes(loc) || loc.includes(pDistrict)
-        if (!match) return false
-      }
+        // Category
+        if (selectedCategory !== 'all') {
+          const catObj = PHOTOGRAPHY_CATEGORIES.find(c => c.value === selectedCategory)
+          const catLabel = catObj ? catObj.label.toLowerCase() : selectedCategory.toLowerCase()
+          const hasSpec = p.specialties?.some(s => s.toLowerCase().includes(catLabel) || catLabel.includes(s.toLowerCase()))
+          if (!hasSpec) return false
+        }
 
-      // Rating
-      if (minRating > 0 && (p.average_rating || 0) < minRating) {
-        return false
-      }
+        // Location / City / District
+        if (selectedDistrict !== 'all') {
+          const loc = selectedDistrict.toLowerCase().replace('tp. ', '').replace('thành phố ', '').trim()
+          const pDistrict = (p.district || '').toLowerCase()
+          const pCity = (p.city || '').toLowerCase()
+          const pAddress = (p.address || '').toLowerCase()
+          const match = pDistrict.includes(loc) || pCity.includes(loc) || pAddress.includes(loc) || loc.includes(pDistrict)
+          if (!match) return false
+        }
 
-      // Verified
-      if (verifiedOnly && !p.is_verified) {
-        return false
-      }
+        // Rating
+        if (minRating > 0 && (p.average_rating || 0) < minRating) {
+          return false
+        }
 
-      // Ready to work
-      if (readyToWorkOnly && !p.is_ready_to_work) {
-        return false
-      }
+        // Verified
+        if (verifiedOnly && !p.is_verified) {
+          return false
+        }
 
-      return true
-    }).sort((a, b) => {
-      if (sortBy === 'rating') return (b.average_rating || 0) - (a.average_rating || 0)
-      if (sortBy === 'price_asc') return (a.starting_price || 0) - (b.starting_price || 0)
-      if (sortBy === 'price_desc') return (b.starting_price || 0) - (a.starting_price || 0)
-      if (sortBy === 'popular') return (b.completed_orders_count || 0) - (a.completed_orders_count || 0)
-      return 0
-    })
-  }, [searchQuery, selectedCategory, selectedDistrict, minRating, verifiedOnly, readyToWorkOnly, sortBy])
+        // Ready to work
+        if (readyToWorkOnly && !p.is_ready_to_work) {
+          return false
+        }
+
+        return true
+      })
+      .sort((a, b) => {
+        if (sortBy === 'distance') {
+          return (a.distanceKm ?? 99999) - (b.distanceKm ?? 99999)
+        }
+        if (sortBy === 'rating') return (b.average_rating || 0) - (a.average_rating || 0)
+        if (sortBy === 'price_asc') return (a.starting_price || 0) - (b.starting_price || 0)
+        if (sortBy === 'price_desc') return (b.starting_price || 0) - (a.starting_price || 0)
+        if (sortBy === 'popular') return (b.completed_orders_count || 0) - (a.completed_orders_count || 0)
+        return 0
+      })
+  }, [allPhotographers, searchQuery, selectedCategory, selectedDistrict, minRating, verifiedOnly, readyToWorkOnly, sortBy, userCoords, maxRadiusKm])
 
   const activeFiltersCount = useMemo(() => {
     let count = 0
@@ -190,6 +269,8 @@ function PhotographersContent() {
     if (minRating > 0) count++
     if (verifiedOnly) count++
     if (readyToWorkOnly) count++
+    if (maxRadiusKm > 0) count++
+    if (userCoords) count++
     return count
   }, [selectedCategory, selectedDistrict, minRating, verifiedOnly, readyToWorkOnly])
 
@@ -223,7 +304,7 @@ function PhotographersContent() {
                 </span>
               </h1>
               <p className="text-slate-600 mt-1">
-                Tìm kiếm và kết nối trực tiếp với các photographer tự do uy tín, giá chỉ từ 79.000đ
+                Tìm kiếm và kết nối trực tiếp với các photographer tự do uy tín, giá chỉ từ 350.000đ
               </p>
             </div>
 
@@ -278,6 +359,28 @@ function PhotographersContent() {
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Nút GPS định vị nhanh */}
+              <button
+                type="button"
+                onClick={handleLocateUser}
+                disabled={isLocatingUser}
+                className={`h-11 px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs ${
+                  userCoords
+                    ? 'bg-emerald-600 text-white shadow-emerald-200 ring-2 ring-emerald-300'
+                    : 'bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200'
+                }`}
+                title={userCoords ? 'Đang lọc theo GPS của bạn' : 'Lấy vị trí GPS hiện tại'}
+              >
+                {isLocatingUser ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Navigation className={`w-3.5 h-3.5 ${userCoords ? 'text-white' : 'text-violet-600'}`} />
+                )}
+                <span className="hidden sm:inline">
+                  {userCoords ? 'GPS: Bật' : 'Gần tôi nhất'}
+                </span>
+              </button>
+
               {/* Sort Dropdown */}
               <div className="relative">
                 <select
@@ -286,6 +389,7 @@ function PhotographersContent() {
                   className="h-11 px-3.5 pr-8 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 cursor-pointer appearance-none focus:outline-none focus:ring-2 focus:ring-violet-500"
                 >
                   <option value="rating">Đánh giá cao nhất</option>
+                  <option value="distance">📍 Gần tôi nhất (Khoảng cách)</option>
                   <option value="popular">Nhiều lượt chụp nhất</option>
                   <option value="price_asc">Giá tăng dần</option>
                   <option value="price_desc">Giá giảm dần</option>
@@ -391,6 +495,42 @@ function PhotographersContent() {
                 placeholder="Chọn thành phố / quận..."
                 variant="input-field"
               />
+            </div>
+
+            {/* Bán kính tìm kiếm (Radius Filter) */}
+            <div className="mb-6">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center justify-between">
+                <span>Bán kính tìm kiếm</span>
+                {maxRadiusKm > 0 && (
+                  <span className="text-[10px] text-violet-600 font-bold">≤ {maxRadiusKm} km</span>
+                )}
+              </label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[
+                  { value: 0, label: 'Tất cả' },
+                  { value: 5, label: '5 km' },
+                  { value: 10, label: '10 km' },
+                  { value: 25, label: '25 km' },
+                ].map((rad) => (
+                  <button
+                    key={rad.value}
+                    type="button"
+                    onClick={() => setMaxRadiusKm(rad.value)}
+                    className={`h-8 rounded-lg text-xs font-semibold border transition-all ${
+                      maxRadiusKm === rad.value
+                        ? 'bg-violet-600 text-white border-violet-600 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {rad.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1.5">
+                {userCoords
+                  ? '🎯 Đang tính khoảng cách từ tọa độ GPS của bạn'
+                  : '💡 Bấm "Gần tôi nhất" để tự động đo khoảng cách'}
+              </p>
             </div>
 
             {/* Đánh giá tối thiểu */}
@@ -503,57 +643,88 @@ function PhotographersContent() {
               </div>
             ) : viewMode === 'grid' ? (
               /* GRID VIEW */
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                {filteredPhotographers.map((p) => (
-                  <motion.div
-                    key={p.id}
-                    layout
-                    initial={{ opacity: 0, y: 15 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <Card className="overflow-hidden rounded-2xl border-slate-200/80 hover:shadow-xl hover:border-violet-300 transition-all duration-300 group flex flex-col h-full bg-white">
-                      
-                      {/* Cover & Portfolio Carousel Preview */}
-                      <div className="relative h-48 bg-slate-100 overflow-hidden">
-                        <Image
-                          src={p.portfolio_photos?.[0] || p.cover_image_url || '/hero-bg.jpg'}
-                          alt={p.display_name}
-                          fill
-                          className="object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+              <div>
+                {/* Banner khi đang kích hoạt GPS */}
+                {userCoords && (
+                  <div className="mb-4 bg-emerald-50 border border-emerald-200/80 rounded-2xl p-3 px-4 flex items-center justify-between text-xs text-emerald-900 shadow-xs">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 flex-shrink-0">
+                        <Navigation className="w-4 h-4 animate-pulse" />
+                      </div>
+                      <div>
+                        <p className="font-bold">Đang đề xuất thợ theo tọa độ GPS của bạn</p>
+                        <p className="text-[11px] text-emerald-700">
+                          {userCoords.latitude.toFixed(4)}° N, {userCoords.longitude.toFixed(4)}° E • Đang sắp xếp khoảng cách tăng dần
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setUserCoords(null); setSortBy('rating') }}
+                      className="px-2.5 py-1 bg-white hover:bg-emerald-100/60 text-emerald-700 font-bold rounded-lg border border-emerald-200 transition-colors text-[11px]"
+                    >
+                      Tắt định vị
+                    </button>
+                  </div>
+                )}
 
-                        {/* Top Badges */}
-                        <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            {p.is_sponsored && (
-                              <span className="bg-amber-400 text-slate-950 font-bold text-[10px] px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
-                                <Sparkles className="w-3 h-3 fill-slate-950" />
-                                Nổi bật
-                              </span>
-                            )}
-                            {p.badges?.includes('Star of the Quarter') && (
-                              <span className="bg-violet-600 text-white font-bold text-[10px] px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
-                                <Award className="w-3 h-3" />
-                                Star Q1
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+                  {filteredPhotographers.map((p) => (
+                    <motion.div
+                      key={p.id}
+                      layout
+                      initial={{ opacity: 0, y: 15 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <Card className="overflow-hidden rounded-2xl border-slate-200/80 hover:shadow-xl hover:border-violet-300 transition-all duration-300 group flex flex-col h-full bg-white">
+                        
+                        {/* Cover & Portfolio Carousel Preview */}
+                        <div className="relative h-48 bg-slate-100 overflow-hidden">
+                          <Image
+                            src={p.portfolio_photos?.[0] || p.cover_image_url || '/hero-bg.jpg'}
+                            alt={p.display_name}
+                            fill
+                            className="object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+                          {/* Top Badges */}
+                          <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {p.distanceKm !== undefined && (
+                                <span className="bg-emerald-600 text-white font-bold text-[10px] px-2 py-0.5 rounded-full shadow-md flex items-center gap-1 border border-emerald-400">
+                                  <Navigation className="w-2.5 h-2.5" />
+                                  Cách {formatDistance(p.distanceKm)}
+                                </span>
+                              )}
+                              {p.is_sponsored && (
+                                <span className="bg-amber-400 text-slate-950 font-bold text-[10px] px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+                                  <Sparkles className="w-3 h-3 fill-slate-950" />
+                                  Nổi bật
+                                </span>
+                              )}
+                              {p.badges?.includes('Star of the Quarter') && (
+                                <span className="bg-violet-600 text-white font-bold text-[10px] px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+                                  <Award className="w-3 h-3" />
+                                  Star Q1
+                                </span>
+                              )}
+                            </div>
+
+                            {p.is_ready_to_work && (
+                              <span className="bg-emerald-500/90 backdrop-blur-sm text-white font-semibold text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                Sẵn sàng
                               </span>
                             )}
                           </div>
-
-                          {p.is_ready_to_work && (
-                            <span className="bg-emerald-500/90 backdrop-blur-sm text-white font-semibold text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
-                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                              Sẵn sàng
-                            </span>
-                          )}
-                        </div>
 
                         {/* Price Tag on Cover */}
                         <div className="absolute bottom-3 left-3 text-white">
                           <p className="text-[11px] text-white/80 font-medium">Giá bắt đầu từ</p>
                           <p className="text-lg font-black text-white leading-tight">
-                            {formatVND(p.starting_price || 79000)}
+                            {formatVND(p.starting_price || 350000)}
                           </p>
                         </div>
                       </div>
@@ -643,6 +814,7 @@ function PhotographersContent() {
                     </Card>
                   </motion.div>
                 ))}
+                </div>
               </div>
             ) : (
               /* MAP VIEW */
@@ -651,14 +823,16 @@ function PhotographersContent() {
                   <div>
                     <h3 className="font-bold text-sm flex items-center gap-2">
                       <Navigation className="w-4 h-4 text-violet-400" />
-                      Bản đồ Nhiếp ảnh gia quanh TP. Hồ Chí Minh
+                      Bản đồ Nhiếp ảnh gia quanh khu vực
                     </h3>
                     <p className="text-xs text-slate-400">
-                      Bấm vào các vị trí để xem chi tiết thợ ảnh trong bán kính phục vụ
+                      {userCoords
+                        ? 'Đang trực quan hóa bán kính các thợ ảnh xung quanh vị trí GPS của bạn'
+                        : 'Bấm vào các vị trí để xem chi tiết thợ ảnh trong bán kính phục vụ'}
                     </p>
                   </div>
                   <Badge variant="outline" className="border-violet-400 text-violet-300 text-xs">
-                    PostGIS Geolocation Demo
+                    {userCoords ? 'GPS Live Radius' : 'PostGIS Geolocation Demo'}
                   </Badge>
                 </div>
 
@@ -702,16 +876,29 @@ function PhotographersContent() {
                               {p.display_name}
                             </p>
                             <div className="flex items-center justify-between text-[10px] mt-1">
-                              <span className="font-bold">{formatVND(p.starting_price || 79000)}</span>
-                              <span>⭐ {p.average_rating}</span>
+                              <span className="font-bold">{formatVND(p.starting_price || 350000)}</span>
+                              {p.distanceKm !== undefined ? (
+                                <span className={`font-bold ${isSelected ? 'text-emerald-200' : 'text-emerald-600'}`}>
+                                  📍 {formatDistance(p.distanceKm)}
+                                </span>
+                              ) : (
+                                <span>⭐ {p.average_rating}</span>
+                              )}
                             </div>
                           </button>
                         )
                       })}
                     </div>
 
-                    <div className="relative z-10 self-start bg-white/80 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600">
-                      📍 Trung tâm: Bến Bạch Đằng, Quận 1 (10.7769° N, 106.7009° E)
+                    <div className="relative z-10 self-start bg-white/85 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600">
+                      {userCoords ? (
+                        <span className="text-emerald-700 font-bold flex items-center gap-1.5">
+                          <Navigation className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                          Vị trí của bạn: {userCoords.latitude.toFixed(4)}° N, {userCoords.longitude.toFixed(4)}° E
+                        </span>
+                      ) : (
+                        <span>📍 Mặc định: Trung tâm Quận 1 (10.7769° N, 106.7009° E)</span>
+                      )}
                     </div>
                   </div>
 
@@ -732,7 +919,7 @@ function PhotographersContent() {
                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                             <div className="absolute bottom-2 left-2 text-white">
                               <p className="text-[10px] text-white/80">Khởi điểm từ</p>
-                              <p className="text-base font-black">{formatVND(p.starting_price || 79000)}</p>
+                              <p className="text-base font-black">{formatVND(p.starting_price || 350000)}</p>
                             </div>
                           </div>
 
@@ -761,7 +948,7 @@ function PhotographersContent() {
                           <div className="space-y-2 mt-4">
                             <Link href={`/book/${p.id}`} className="block">
                               <Button className="w-full bg-brand hover:opacity-90 rounded-xl font-bold text-xs h-10">
-                                Đặt lịch ngay ({formatVND(p.starting_price || 79000)})
+                                Đặt lịch ngay ({formatVND(p.starting_price || 350000)})
                               </Button>
                             </Link>
                             <Link href={`/photographers/${p.slug}`} className="block">

@@ -24,10 +24,14 @@ import {
   AlertCircle
 } from 'lucide-react'
 import { getApprovedProviders, getStoredBookings } from '@/lib/data/booking-store'
+import { DEMO_PACKAGES } from '@/lib/data/mock-data'
 import { formatVND } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { PackageCard } from '@/components/packages/package-card'
+import { BookingModal } from '@/components/packages/booking-modal'
+import { ServicePackage } from '@/types'
 
 export default function PhotographerProfilePage() {
   const params = useParams()
@@ -57,7 +61,7 @@ export default function PhotographerProfilePage() {
         camera_lenses: ['50mm f/1.4 GM', '85mm f/1.4', '24-70mm f/2.8'],
         equipment: ['Sony Alpha / Canon EOS R', 'Lens 50mm f/1.4 GM', 'Đèn flash & diffuser Godox'],
         service_radius_km: 15,
-        starting_price: foundApproved.starting_price || 99000,
+        starting_price: foundApproved.starting_price || 350000,
         average_rating: foundApproved.rating || 5.0,
         review_count: foundApproved.reviews || 0,
         completed_orders_count: 0,
@@ -106,32 +110,13 @@ export default function PhotographerProfilePage() {
     )
   }
 
-  const packages = [
-    {
-      id: `${photographer.id}-pkg-1`,
-      category: 'Cơ bản',
-      name: 'Gói Chụp Tiêu Chuẩn',
-      base_price: photographer.starting_price,
-      description: 'Chụp ngoại cảnh hoặc studio cơ bản, phù hợp chụp chân dung cá nhân, profile mạng xã hội.',
-      duration_minutes: 60,
-      original_photos: 30,
-      edited_photos: 10,
-      retouch_quota: 3,
-      delivery_days: 2,
-    },
-    {
-      id: `${photographer.id}-pkg-2`,
-      category: 'Phổ biến',
-      name: 'Gói Chụp Lookbook / Concept',
-      base_price: Math.round((photographer.starting_price * 1.8) / 10000) * 10000,
-      description: 'Chụp chuyên sâu với đầy đủ định hướng phong cách, hỗ trợ chỉnh màu nâng cao và đạo cụ.',
-      duration_minutes: 120,
-      original_photos: 80,
-      edited_photos: 25,
-      retouch_quota: 10,
-      delivery_days: 3,
-    }
-  ]
+  const [selectedBookingPkg, setSelectedBookingPkg] = useState<ServicePackage | null>(null)
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState<boolean>(false)
+
+  const packages: ServicePackage[] = DEMO_PACKAGES.map((pkg) => ({
+    ...pkg,
+    id: `${photographer.id}-${pkg.slug}`,
+  }))
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
@@ -333,72 +318,17 @@ export default function PhotographerProfilePage() {
         {/* 1. PACKAGES TAB */}
         {activeTab === 'packages' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {packages.map((pkg) => (
-              <Card key={pkg.id} className="rounded-2xl border-slate-200 hover:border-violet-300 hover:shadow-lg transition-all duration-300 flex flex-col justify-between">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div>
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-violet-600 bg-violet-50 px-2.5 py-0.5 rounded-full">
-                        {pkg.category}
-                      </span>
-                      <h3 className="text-xl font-black text-slate-900 mt-1">{pkg.name}</h3>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-2xl font-black text-violet-700">
-                        {formatVND(pkg.base_price)}
-                      </span>
-                      <p className="text-[11px] text-slate-400 font-medium">/ buổi chụp</p>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-slate-600 mb-5 leading-relaxed">
-                    {pkg.description}
-                  </p>
-
-                  <div className="space-y-2.5 py-3 border-y border-slate-100 text-xs text-slate-700 mb-5">
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 text-slate-500">
-                        <Clock className="w-4 h-4 text-slate-400" />
-                        Thời gian chụp:
-                      </span>
-                      <span className="font-bold">{pkg.duration_minutes} phút</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 text-slate-500">
-                        <Camera className="w-4 h-4 text-slate-400" />
-                        File gốc & File màu:
-                      </span>
-                      <span className="font-bold">
-                        {pkg.original_photos} gốc / {pkg.edited_photos} chỉnh màu
-                      </span>
-                    </div>
-                    {pkg.retouch_quota > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-2 text-slate-500">
-                          <Sparkles className="w-4 h-4 text-amber-500" />
-                          Retouch chuyên sâu:
-                        </span>
-                        <span className="font-bold text-amber-600">{pkg.retouch_quota} ảnh</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <span className="flex items-center gap-2 text-slate-500">
-                        <Calendar className="w-4 h-4 text-slate-400" />
-                        Hạn bàn giao ảnh:
-                      </span>
-                      <span className="font-bold text-emerald-600">{pkg.delivery_days} ngày</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Link href={`/book/${photographer.id}?pkg=${pkg.id}`} className="block">
-                      <Button className="w-full bg-brand hover:opacity-90 rounded-xl font-bold text-sm h-11">
-                        Chọn gói này & Đặt lịch
-                      </Button>
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
+            {packages.map((pkg, idx) => (
+              <PackageCard
+                key={pkg.id}
+                pkg={pkg}
+                index={idx}
+                actionLabel="Chọn gói này & Đặt lịch"
+                onBookNow={(p) => {
+                  setSelectedBookingPkg(p)
+                  setIsBookingModalOpen(true)
+                }}
+              />
             ))}
           </div>
         )}
@@ -537,6 +467,19 @@ export default function PhotographerProfilePage() {
           </div>
         )}
       </div>
+
+      {/* Booking Modal */}
+      <BookingModal
+        isOpen={isBookingModalOpen}
+        onClose={() => setIsBookingModalOpen(false)}
+        initialPackage={selectedBookingPkg}
+        photographer={{
+          id: photographer.id,
+          display_name: photographer.display_name,
+          avatar_url: photographer.avatar_url,
+          slug: photographer.slug,
+        }}
+      />
     </div>
   )
 }

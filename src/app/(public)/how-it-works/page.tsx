@@ -35,7 +35,7 @@ export default function HowItWorksPage() {
     {
       step: '02',
       title: 'Đặt Lịch & Cọc An Toàn (Escrow)',
-      desc: 'Chọn gói chụp (Flash Shot từ 79k), chọn khung giờ và thanh toán cọc an toàn. FLASHY giữ tiền trung gian để bảo vệ quyền lợi của bạn.',
+      desc: 'Chọn gói chụp (FLASHY EXPRESS t\u1eeb 350.000\u0111), chọn khung giờ và thanh toán cọc an toàn. FLASHY giữ tiền trung gian để bảo vệ quyền lợi của bạn.',
       icon: ShieldCheck,
       badge: 'Bảo vệ thanh toán'
     },
@@ -66,7 +66,7 @@ export default function HowItWorksPage() {
     {
       step: '02',
       title: 'Cài Đặt Lịch & Bảng Giá Dịch Vụ',
-      desc: 'Tùy chỉnh các gói chụp Flash Shot, Quick Date, Vibe Sài Gòn hoặc tạo gói riêng. Bật chế độ "Sẵn sàng" để nhận đơn chụp ngay lập tức.',
+      desc: 'Tùy chỉnh các gói chụp FLASHY EXPRESS, FLASHY CASUAL, FLASHY CASUAL hoặc tạo gói riêng. Bật chế độ "Sẵn sàng" để nhận đơn chụp ngay lập tức.',
       icon: CalendarCheck,
       badge: 'Linh hoạt thời gian'
     },
@@ -82,7 +82,7 @@ export default function HowItWorksPage() {
       title: 'Tải Ảnh Bàn Giao & Nhận Thanh Toán',
       desc: 'Tải ảnh gốc và ảnh chỉnh sửa lên hệ thống. Sau khi khách duyệt hoặc sau 48h không khiếu nại, tiền được giải ngân về tài khoản ngân hàng của bạn.',
       icon: BadgeDollarSign,
-      badge: '0% hoa hồng 3 đơn đầu'
+      badge: 'Thù lao 85% + 100% Add-on'
     }
   ]
 

@@ -20,7 +20,7 @@ FLASHY uses PostgreSQL 15+ hosted on Supabase Cloud. The database enforces stric
 
 ### 2.2 Photographer Profiles & Catalog
 - `photographer_profiles`: Freelancer metadata (`slug`, `bio`, `city`, `district`, `service_radius_km`, `kyc_status`, `is_available`, `avg_rating`, `total_reviews`).
-- `service_packages`: Standard packages (Flash Shot, Quick Date, Vibe Sài Gòn, Outdoor).
+- `service_packages`: Standard packages according to CP3 (FLASHY EXPRESS, FLASHY CASUAL, FLASHY PRO, FLASHY SIGNATURE).
 - `package_addons`: Makeup, hair styling, outfit rentals, express delivery.
 - `photographer_packages`: Custom pricing and add-on assignments per freelancer.
 - `portfolio_images`: Public portfolio items with sort orders.

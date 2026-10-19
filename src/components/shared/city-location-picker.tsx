@@ -2,8 +2,13 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { MapPin, ChevronDown, X, Search } from 'lucide-react'
+import { MapPin, ChevronDown, X, Search, Navigation, Loader2 } from 'lucide-react'
 import { VN_CITIES } from '@/lib/constants'
+import {
+  getCurrentUserCoordinates,
+  findNearestDistrict,
+  type Coordinates
+} from '@/lib/geolocation'
 
 // ─── District data per city ───────────────────────────────────────────────────
 export const CITY_DISTRICTS: Record<string, string[]> = {
@@ -39,9 +44,18 @@ const HOT_CITIES = ['TP. Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Đà Lạ
 
 export const HCMC_DISTRICTS = CITY_DISTRICTS['TP. Hồ Chí Minh']
 
+export interface SelectedLocationData {
+  location: string
+  district?: string
+  city?: string
+  coordinates?: Coordinates
+  isCurrentLocation?: boolean
+}
+
 interface CityLocationPickerProps {
   value: string
   onChange: (location: string) => void
+  onLocationSelect?: (data: SelectedLocationData) => void
   placeholder?: string
   variant?: 'hero-glass' | 'input-field'
   align?: 'left' | 'right' | 'auto'
@@ -52,6 +66,7 @@ interface CityLocationPickerProps {
 export function CityLocationPicker({
   value,
   onChange,
+  onLocationSelect,
   placeholder = 'Chọn thành phố',
   variant = 'hero-glass',
   align = 'auto',
@@ -73,6 +88,8 @@ export function CityLocationPicker({
   const [filterQuery, setFilterQuery] = useState('')
   const [dropdownStyles, setDropdownStyles] = useState<React.CSSProperties>({})
   const [isMounted, setIsMounted] = useState(false)
+  const [isLocating, setIsLocating] = useState(false)
+  const [locationError, setLocationError] = useState<string | null>(null)
 
   const containerRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
@@ -140,13 +157,51 @@ export function CityLocationPicker({
   }, [isOpen])
 
   useEffect(() => {
-    if (isOpen) setTimeout(() => searchRef.current?.focus(), 60)
+    if (isOpen) {
+      setLocationError(null)
+      setTimeout(() => searchRef.current?.focus(), 60)
+    }
   }, [isOpen])
+
+  const handleGetCurrentLocation = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    setIsLocating(true)
+    setLocationError(null)
+    try {
+      const coords = await getCurrentUserCoordinates()
+      const geocoded = findNearestDistrict(coords)
+      if (geocoded.city) {
+        setSelectedCity(geocoded.city)
+      }
+      const targetLocation = geocoded.district || geocoded.formattedAddress
+      onChange(targetLocation)
+      onLocationSelect?.({
+        location: targetLocation,
+        district: geocoded.district,
+        city: geocoded.city,
+        coordinates: coords,
+        isCurrentLocation: true
+      })
+      setIsOpen(false)
+    } catch (err: any) {
+      setLocationError(err?.message || 'Không thể lấy vị trí hiện tại.')
+    } finally {
+      setIsLocating(false)
+    }
+  }
 
   const handleSelectCity = (city: string) => {
     setSelectedCity(city)
     setFilterQuery('')
     onChange(city)
+    onLocationSelect?.({
+      location: city,
+      city,
+      isCurrentLocation: false
+    })
   }
 
   const handleSelectDistrict = (district: string) => {
@@ -259,6 +314,52 @@ export function CityLocationPicker({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Nút Lấy Vị trí GPS Hiện tại (Tương tự Grab / Shopee) */}
+      <div className={`px-3 py-2 border-b ${isHero ? 'border-white/10 bg-slate-800/30' : 'border-slate-100 bg-violet-50/40'}`}>
+        <button
+          type="button"
+          onClick={handleGetCurrentLocation}
+          disabled={isLocating}
+          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all group ${
+            isHero
+              ? 'bg-gradient-to-r from-violet-600/30 to-fuchsia-600/30 hover:from-violet-600/50 hover:to-fuchsia-600/50 text-white border border-violet-500/30 shadow-sm'
+              : 'bg-white hover:bg-violet-100/70 text-violet-700 border border-violet-200/80 shadow-xs'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            <div className={`w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 ${
+              isHero ? 'bg-violet-500/30 text-violet-300' : 'bg-violet-100 text-violet-600'
+            }`}>
+              {isLocating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-violet-400" />
+              ) : (
+                <Navigation className="w-3.5 h-3.5 text-violet-500 group-hover:scale-110 transition-transform" />
+              )}
+            </div>
+            <div className="text-left">
+              <p className="font-bold leading-tight flex items-center gap-1.5">
+                <span>{isLocating ? 'Đang xác định vị trí...' : 'Sử dụng vị trí hiện tại'}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              </p>
+              <p className={`text-[10px] ${isHero ? 'text-slate-400' : 'text-slate-500'}`}>
+                Tự động đề xuất thợ ảnh & studio gần nhất
+              </p>
+            </div>
+          </div>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+            isHero ? 'bg-violet-500/30 text-violet-200' : 'bg-violet-100 text-violet-700'
+          }`}>
+            GPS
+          </span>
+        </button>
+
+        {locationError && (
+          <p className="text-[11px] text-rose-500 mt-1.5 px-1 leading-snug">
+            ⚠️ {locationError}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-1 min-h-0 overflow-hidden" style={{ maxHeight: 320 }}>

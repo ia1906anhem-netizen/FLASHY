@@ -32,7 +32,7 @@ import { formatVND } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { getBookingById, updateBookingStatus, PersistentBooking } from '@/lib/data/booking-store'
+import { getBookingById, updateBookingStatus, getStoredBookings, PersistentBooking } from '@/lib/data/booking-store'
 import { calculateFullBookingCommission } from '@/lib/utils/commission'
 
 export default function PhotographerBookingDetailPage() {
@@ -43,49 +43,42 @@ export default function PhotographerBookingDetailPage() {
   const [booking, setBooking] = useState<PersistentBooking | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
+  const [completedCount, setCompletedCount] = useState(0)
 
   useEffect(() => {
     if (bookingId) {
       const found = getBookingById(bookingId)
-      if (found) {
-        setBooking(found)
-      } else {
-        // Fallback demo booking
-        setBooking({
-          id: bookingId,
-          booking_number: bookingId,
-          photographer_id: 'p-1',
-          photographer_name: 'Minh Trí (TriStreet)',
-          customer_name: 'Nguyễn Thu Trang',
-          package_slug: 'vibe-sai-gon',
-          package_name: 'Vibe Sài Gòn',
-          shooting_date: '15/04/2026',
-          shooting_time: '15:30',
-          duration_minutes: 120,
-          location: 'Bến Bạch Đằng & Bưu điện Q.1, TP. Hồ Chí Minh',
-          concept_notes: 'Trang phục tone be/trắng, chụp ngoại cảnh hoàng hôn, màu film cổ điển.',
-          package_price: 550000,
-          addons_total: 150000,
-          total_amount: 700000,
-          deposit_amount: 210000,
-          remaining_amount: 490000,
-          payment_method: 'sandbox',
-          status: 'CONFIRMED',
-          status_label: 'Đã nhận lịch • Sắp diễn ra',
-          status_color: 'bg-emerald-50 text-emerald-700',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          selected_addons: [{ id: 'addon-1', name: 'Trang điểm & Làm tóc nhẹ nhàng', price: 150000 }],
-        })
-      }
+      setBooking(found)
+      const allBookings = getStoredBookings()
+      const count = allBookings.filter((b) => ['ACCEPTED', 'COMPLETED'].includes(b.status)).length
+      setCompletedCount(count)
       setIsLoaded(true)
     }
   }, [bookingId])
 
-  if (!isLoaded || !booking) {
+  if (!isLoaded) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-violet-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (!booking) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-6 md:p-12 flex flex-col items-center justify-center text-center">
+        <div className="w-16 h-16 rounded-3xl bg-slate-100 text-slate-400 flex items-center justify-center mb-4">
+          <Camera className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-black text-slate-900 mb-2">Không tìm thấy đơn chụp #{bookingId}</h2>
+        <p className="text-xs text-slate-500 max-w-sm mb-6">
+          Đơn đặt chụp này không tồn tại hoặc đã bị xóa khỏi hệ thống. Vui lòng kiểm tra lại danh sách đơn chụp của bạn.
+        </p>
+        <Link href="/photographer/bookings">
+          <Button className="bg-brand text-white rounded-xl text-xs font-bold h-10 px-6">
+            Quay lại danh sách đơn chụp
+          </Button>
+        </Link>
       </div>
     )
   }
@@ -94,7 +87,7 @@ export default function PhotographerBookingDetailPage() {
   const commissionBreakdown = calculateFullBookingCommission({
     packageSlug: booking.package_slug,
     packageAmountVnd: booking.package_price,
-    photographerCompletedCount: 5,
+    photographerCompletedCount: completedCount,
     addons: (booking.selected_addons || []).map((a) => ({
       name: a.name,
       amountVnd: a.price,
@@ -350,15 +343,9 @@ export default function PhotographerBookingDetailPage() {
                         <span>• {ad.name}:</span>
                         <span>+{formatVND(ad.amountVnd)}</span>
                       </div>
-                      <div className="flex justify-between text-slate-400 text-[10px]">
-                        <span>
-                          {ad.type === 'makeup_hair'
-                            ? 'Hoa hồng MUA tự do (10%):'
-                            : ad.type === 'outfit_rental'
-                            ? `Chiết khấu Shop (${ad.ratePercent}%):`
-                            : `Phí sàn (${ad.ratePercent}%):`}
-                        </span>
-                        <span>-{formatVND(ad.commissionVnd)}</span>
+                      <div className="flex justify-between text-emerald-600 text-[10px]">
+                        <span>• Phí sàn Add-on (0% - Thợ nhận 100%):</span>
+                        <span>0₫</span>
                       </div>
                     </div>
                   ))}

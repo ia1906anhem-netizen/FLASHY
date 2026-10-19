@@ -48,11 +48,13 @@ export default function PhotographerEarningsPage() {
   }, [])
 
   // Calculate dynamic transactions
+  const completedCount = bookings.filter((b) => ['ACCEPTED', 'COMPLETED'].includes(b.status)).length
+
   const transactions = bookings.map((b) => {
     const commission = calculateFullBookingCommission({
       packageSlug: b.package_slug,
       packageAmountVnd: b.package_price,
-      photographerCompletedCount: 5,
+      photographerCompletedCount: completedCount,
       addons: (b.selected_addons || []).map((a) => ({
         name: a.name,
         amountVnd: a.price,
@@ -161,42 +163,33 @@ export default function PhotographerEarningsPage() {
         </Card>
       </div>
 
-      {/* Commission Rules Engine Explanation Box (Section 11.2) */}
+      {/* Commission Rules Engine Explanation Box (CP3 Policy) */}
       <Card className="rounded-3xl border-violet-200 bg-gradient-to-br from-violet-50/80 to-pink-50/50 p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-3">
           <Percent className="w-5 h-5 text-violet-600" />
-          <h3 className="font-bold text-slate-900 text-sm">Chính Sách Hoa Hồng FLASHY Đang Áp Dụng</h3>
+          <h3 className="font-bold text-slate-900 text-sm">Chính Sách Hoa Hồng FLASHY (Chuẩn CP3 Mới Nhất)</h3>
+          <Badge className="bg-violet-100 text-violet-700 rounded-full text-[10px] font-bold ml-auto">Áp dụng cố định</Badge>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
           <div className="p-3.5 rounded-2xl bg-white border border-violet-100 shadow-2xs">
-            <span className="font-black text-emerald-600 text-sm block mb-0.5">0% Hoa Hồng</span>
-            <strong className="text-slate-800">3 Đơn Chụp Đầu Tiên</strong>
-            <p className="text-[11px] text-slate-500 mt-0.5">Nhận trọn 100% thù lao khi mới tham gia sàn.</p>
+            <span className="font-black text-violet-700 text-sm block mb-0.5">15% Phí Sàn</span>
+            <strong className="text-slate-800">Phí Sàn FLASHY</strong>
+            <p className="text-[11px] text-slate-500 mt-0.5">Trích cố định 15% từ giá gói gốc cho tất cả 4 gói dịch vụ.</p>
           </div>
-          <div className="p-3.5 rounded-2xl bg-white border border-violet-100 shadow-2xs">
-            <span className="font-black text-violet-700 text-sm block mb-0.5">6.0% Hoa Hồng</span>
-            <strong className="text-slate-800">Flash Shot & Quick Date</strong>
-            <p className="text-[11px] text-slate-500 mt-0.5">Phí nền tảng siêu ưu đãi cho gói chụp ngắn.</p>
+          <div className="p-3.5 rounded-2xl bg-white border border-emerald-100 shadow-2xs">
+            <span className="font-black text-emerald-600 text-sm block mb-0.5">85% Thù Lao</span>
+            <strong className="text-slate-800">Thợ Thực Nhận</strong>
+            <p className="text-[11px] text-slate-500 mt-0.5">Thợ nhận trọn 85% thù lao giá gói dịch vụ sau khi trừ phí sàn.</p>
           </div>
-          <div className="p-3.5 rounded-2xl bg-white border border-violet-100 shadow-2xs">
-            <span className="font-black text-violet-700 text-sm block mb-0.5">9.0% Hoa Hồng</span>
-            <strong className="text-slate-800">Vibe Sài Gòn & Outdoor</strong>
-            <p className="text-[11px] text-slate-500 mt-0.5">Áp dụng cho gói chụp ngoại cảnh chuyên sâu.</p>
+          <div className="p-3.5 rounded-2xl bg-white border border-emerald-100 shadow-2xs">
+            <span className="font-black text-emerald-600 text-sm block mb-0.5">100% Phụ Phí</span>
+            <strong className="text-slate-800">Add-ons & Di Chuyển</strong>
+            <p className="text-[11px] text-slate-500 mt-0.5">Thợ nhận 100% phụ phí Add-ons / di chuyển. Sàn không trích hoa hồng.</p>
           </div>
-          <div className="p-3.5 rounded-2xl bg-white border border-violet-100 shadow-2xs">
-            <span className="font-black text-pink-600 text-sm block mb-0.5">4.0% Ưu Đãi</span>
-            <strong className="text-slate-800">Khách Hàng Quay Lại</strong>
-            <p className="text-[11px] text-slate-500 mt-0.5">Giảm phí khi khách cũ đặt lại bạn trên FLASHY.</p>
-          </div>
-          <div className="p-3.5 rounded-2xl bg-white border border-violet-100 shadow-2xs">
-            <span className="font-black text-fuchsia-600 text-sm block mb-0.5">10.0% Hoa Hồng</span>
-            <strong className="text-slate-800">Dịch Vụ Makeup / Làm Tóc</strong>
-            <p className="text-[11px] text-slate-500 mt-0.5">Áp dụng cho Makeup Artist tự do liên kết sàn.</p>
-          </div>
-          <div className="p-3.5 rounded-2xl bg-white border border-violet-100 shadow-2xs">
-            <span className="font-black text-indigo-600 text-sm block mb-0.5">10% – 12% Chiết Khấu</span>
-            <strong className="text-slate-800">Thuê Trang Phục & Phụ Kiện</strong>
-            <p className="text-[11px] text-slate-500 mt-0.5">Chiết khấu trực tiếp từ các Shop đối tác.</p>
+          <div className="p-3.5 rounded-2xl bg-white border border-amber-100 shadow-2xs">
+            <span className="font-black text-amber-600 text-sm block mb-0.5">0% Thưởng</span>
+            <strong className="text-slate-800">Star of the Quarter</strong>
+            <p className="text-[11px] text-slate-500 mt-0.5">Miễn 100% phí sàn trong tháng thưởng cho thợ đạt danh hiệu xuất sắc.</p>
           </div>
         </div>
       </Card>

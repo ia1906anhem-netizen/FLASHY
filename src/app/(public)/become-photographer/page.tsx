@@ -25,7 +25,7 @@ export default function BecomePhotographerPage() {
   const [avgPackagePrice, setAvgPackagePrice] = useState<number>(350000)
 
   const monthlyGross = shootsPerWeek * avgPackagePrice * 4
-  const estimatedNet = Math.round(monthlyGross * 0.94) // assuming avg 6% fee
+  const estimatedNet = Math.round(monthlyGross * 0.85) // CP3 standard: 85% net payout to photographer
 
   return (
     <div className="min-h-screen bg-slate-50 py-12">
@@ -64,9 +64,9 @@ export default function BecomePhotographerPage() {
             <div className="w-12 h-12 rounded-2xl bg-violet-100 text-violet-700 flex items-center justify-center mb-4">
               <Coins className="w-6 h-6" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">0% Hoa Hồng 3 Đơn Đầu</h3>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Thù Lao 85% + 100% Add-on</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Mọi nhiếp ảnh gia mới gia nhập đều được giữ trọn vẹn 100% doanh thu trong 3 đơn hàng đầu tiên để làm quen với hệ sinh thái FLASHY.
+              Phí sàn cố định 15% trích từ giá gói gốc, thợ giữ trọn 85% thù lao + nhận 100% phụ phí Add-ons / di chuyển mà không bị trừ hoa hồng.
             </p>
           </Card>
 
@@ -135,16 +135,16 @@ export default function BecomePhotographerPage() {
                 </div>
                 <input
                   type="range"
-                  min="89000"
-                  max="1200000"
+                  min="350000"
+                  max="3200000"
                   step="50000"
                   value={avgPackagePrice}
                   onChange={(e) => setAvgPackagePrice(Number(e.target.value))}
                   className="w-full accent-violet-600 cursor-pointer"
                 />
                 <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                  <span>Flash Shot (89k)</span>
-                  <span>Outdoor Ngoại cảnh (1.2tr)</span>
+                  <span>FLASHY EXPRESS (350k)</span>
+                  <span>FLASHY SIGNATURE (3.2tr)</span>
                 </div>
               </div>
             </div>
@@ -159,7 +159,7 @@ export default function BecomePhotographerPage() {
                 <span className="text-base text-violet-300 font-normal"> / tháng</span>
               </div>
               <p className="text-xs text-violet-200 mb-6 leading-relaxed">
-                Sau khi trừ phí nền tảng FLASHY (chỉ từ 5-9%). Trong 3 đơn hàng đầu tiên, bạn nhận trọn vẹn 100%!
+                Sau khi trừ phí sàn FLASHY cố định 15% (thợ nhận 85% giá gói + 100% phụ phí Add-ons / di chuyển).
               </p>
 
               <Link href="/register?role=photographer">

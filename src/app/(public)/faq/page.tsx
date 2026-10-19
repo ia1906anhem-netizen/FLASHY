@@ -17,7 +17,7 @@ export default function FaqPage() {
     },
     {
       q: 'Tôi nhận được bao nhiêu ảnh sau buổi chụp?',
-      a: 'Tùy thuộc vào gói dịch vụ bạn chọn: Gói Flash Shot nhận toàn bộ ảnh gốc (~30 ảnh) + 5 ảnh chỉnh màu nghệ thuật. Gói Quick Date nhận toàn bộ ảnh gốc (~100 ảnh) + 15 ảnh chỉnh màu + 5 ảnh retouch chân dung. Bạn có thể chọn thêm ảnh retouch theo nhu cầu.'
+      a: 'Tùy thuộc vào gói dịch vụ bạn chọn: Gói FLASHY EXPRESS nhận toàn bộ ảnh gốc (~30 ảnh) + 5 ảnh chỉnh màu nghệ thuật. Gói FLASHY CASUAL nhận toàn bộ ảnh gốc (~100 ảnh) + 15 ảnh chỉnh màu + 5 ảnh retouch chân dung. Bạn có thể chọn thêm ảnh retouch theo nhu cầu.'
     },
     {
       q: 'Thời gian nhận ảnh sau buổi chụp là bao lâu?',
@@ -29,7 +29,7 @@ export default function FaqPage() {
     },
     {
       q: 'Làm thế nào để trở thành nhiếp ảnh gia đối tác của FLASHY?',
-      a: 'Bạn chỉ cần nhấn vào nút "Trở thành thợ chụp", điền thông tin cá nhân, tải lên các tác phẩm portfolio và gửi hồ sơ xác minh danh tính (KYC). Đội ngũ FLASHY sẽ duyệt hồ sơ trong vòng 24 giờ. Đặc biệt, bạn được miễn 100% phí hoa hồng trong 3 đơn hàng đầu tiên!'
+      a: 'Bạn chỉ cần nhấn vào nút "Trở thành thợ chụp", điền thông tin cá nhân, tải lên các tác phẩm portfolio và gửi hồ sơ xác minh danh tính (KYC). Đội ngũ FLASHY sẽ duyệt hồ sơ trong vòng 24 giờ. Chính sách hoa hồng cố định 15% minh bạch, thợ nhận 85% giá gói và 100% phụ phí Add-ons / di chuyển!'
     },
     {
       q: 'Nếu tôi không ưng ý với ảnh chụp thì sao?',

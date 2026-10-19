@@ -49,7 +49,7 @@ const DEFAULT_CONVERSATIONS: ConversationItem[] = [
     id: 'chat-1',
     photographer: DEMO_PHOTOGRAPHERS[0],
     bookingId: 'BK-892104',
-    packageName: 'Vibe Sài Gòn',
+    packageName: 'FLASHY CASUAL',
     lastMessage: 'Dạ anh chuẩn bị xong 40 ảnh màu rồi, em xem trong kho ảnh nhé!',
     lastTime: '14:25',
     unread: 1,
@@ -57,7 +57,7 @@ const DEFAULT_CONVERSATIONS: ConversationItem[] = [
       {
         id: 'm-1',
         sender: 'photographer',
-        text: 'Chào bạn Thu Trang! Mình là Minh Trí đây, rất vui được đồng hành cùng bạn trong buổi chụp Vibe Sài Gòn chiều nay.',
+        text: 'Chào bạn Thu Trang! Mình là Minh Trí đây, rất vui được đồng hành cùng bạn trong buổi chụp FLASHY CASUAL chiều nay.',
         time: '13:00',
       },
       {
@@ -84,7 +84,7 @@ const DEFAULT_CONVERSATIONS: ConversationItem[] = [
     id: 'chat-2',
     photographer: DEMO_PHOTOGRAPHERS[1],
     bookingId: 'BK-781923',
-    packageName: 'Quick Date',
+    packageName: 'FLASHY CASUAL',
     lastMessage: 'Bạn yên tâm nha, mình sẽ gợi ý từng dáng nhẹ nhàng tự nhiên nhất!',
     lastTime: 'Hôm qua',
     unread: 0,
@@ -92,7 +92,7 @@ const DEFAULT_CONVERSATIONS: ConversationItem[] = [
       {
         id: 'm-10',
         sender: 'customer',
-        text: 'Chào bạn, gói Quick Date có hướng dẫn tạo dáng cho người mới không ạ?',
+        text: 'Chào bạn, gói FLASHY CASUAL có hướng dẫn tạo dáng cho người mới không ạ?',
         time: '10:00',
       },
       {

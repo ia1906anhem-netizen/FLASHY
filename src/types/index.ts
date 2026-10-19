@@ -108,11 +108,18 @@ export interface ServicePackage {
   description: string
   category: PhotographyCategory
   duration_minutes: number
+  duration_text?: string
   base_price: number  // in VND (integer)
   max_price: number   // in VND (integer)
   original_photos: number
   edited_photos: number
   retouch_quota: number
+  equipment?: string
+  deliverables?: string
+  delivery_time?: string
+  service_includes?: string
+  photographer_tier?: string
+  is_popular?: boolean
   travel_policy: string | null
   cancellation_policy: string | null
   delivery_days: number

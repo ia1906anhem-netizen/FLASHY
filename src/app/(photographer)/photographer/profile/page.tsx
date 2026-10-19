@@ -28,7 +28,7 @@ const AVAILABLE_SPECIALTIES = [
   'Lifestyle',
   'Street photography',
   'Couple photography',
-  'Quick Date',
+  'FLASHY CASUAL',
   'Tết / Áo dài',
   'Graduation / Kỷ yếu',
   'Outdoor',
@@ -64,7 +64,7 @@ export default function PhotographerProfilePage() {
     'Lifestyle',
     'Street photography',
     'Couple photography',
-    'Quick Date',
+    'FLASHY CASUAL',
     'Portrait',
   ])
   const [selectedAreas, setSelectedAreas] = useState<string[]>([

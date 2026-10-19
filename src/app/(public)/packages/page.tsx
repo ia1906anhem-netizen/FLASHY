@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
@@ -11,15 +12,30 @@ import {
   ArrowRight,
   ShieldCheck,
   HelpCircle,
-  PlusCircle
+  PlusCircle,
+  Smartphone,
+  Layers,
+  Calendar,
+  UserCheck
 } from 'lucide-react'
 import { DEMO_PACKAGES, DEMO_ADDONS } from '@/lib/data/mock-data'
 import { formatVND } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { PackageCard } from '@/components/packages/package-card'
+import { BookingModal } from '@/components/packages/booking-modal'
+import { ServicePackage } from '@/types'
 
 export default function PackagesPage() {
+  const [selectedBookingPkg, setSelectedBookingPkg] = useState<ServicePackage | null>(null)
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState<boolean>(false)
+
+  const handleOpenBooking = (pkg: ServicePackage) => {
+    setSelectedBookingPkg(pkg)
+    setIsBookingModalOpen(true)
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 py-12">
       <div className="container mx-auto px-4 max-w-7xl">
@@ -27,94 +43,35 @@ export default function PackagesPage() {
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
           <Badge variant="verified" className="mb-3 px-3 py-1 text-xs">
-            Bảng giá minh bạch 100%
+            Bảng giá minh bạch 100% theo chuẩn CP3
           </Badge>
           <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight mb-4">
             Các Gói Dịch Vụ Chụp Ảnh FLASHY
           </h1>
           <p className="text-base text-slate-600 leading-relaxed">
-            Từ những bức ảnh check-in nhanh dạo phố đến concept ngoại cảnh chuyên nghiệp. Giá niêm yết rõ ràng, không phát sinh chi phí ẩn.
+            Danh mục 4 gói dịch vụ chụp ảnh tiêu chuẩn được định vị rõ ràng từ điện thoại Flagship check-in nhanh đến gói Signature trọn gói Makeup. Giá niêm yết minh bạch, bảo vệ quyền lợi với Escrow 48h.
           </p>
         </div>
 
         {/* 4 Standard Packages Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
-          {DEMO_PACKAGES.map((pkg, idx) => {
-            const isPopular = pkg.slug === 'quick-date'
-            return (
-              <motion.div
-                key={pkg.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: idx * 0.1 }}
-                className="flex"
-              >
-                <Card className={`relative flex flex-col justify-between w-full rounded-3xl overflow-hidden transition-all duration-300 ${
-                  isPopular
-                    ? 'border-2 border-violet-600 shadow-xl bg-white ring-4 ring-violet-50'
-                    : 'border border-slate-200 bg-white hover:border-violet-300 hover:shadow-lg'
-                }`}>
-                  {isPopular && (
-                    <div className="absolute top-0 right-0 bg-brand text-white font-bold text-[11px] px-3 py-1 rounded-bl-xl shadow-sm">
-                      Phổ biến nhất 🔥
-                    </div>
-                  )}
-
-                  <CardContent className="p-6 flex-1 flex flex-col justify-between">
-                    <div>
-                      <div className="mb-4">
-                        <span className="text-[11px] font-bold text-violet-600 uppercase tracking-wider bg-violet-50 px-2.5 py-1 rounded-md">
-                          Gói {idx + 1}
-                        </span>
-                        <h3 className="text-2xl font-black text-slate-900 mt-2">{pkg.name}</h3>
-                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">{pkg.description}</p>
-                      </div>
-
-                      <div className="mb-6 pb-6 border-b border-slate-100">
-                        <div className="text-3xl font-black text-violet-700">
-                          {formatVND(pkg.base_price)}
-                        </div>
-                        <p className="text-xs text-slate-400 mt-0.5">Khởi điểm từ ({pkg.duration_minutes} phút)</p>
-                      </div>
-
-                      {/* Package Features List */}
-                      <ul className="space-y-3 text-xs text-slate-700 mb-6">
-                        <li className="flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                          <span>Thời lượng: <strong>{pkg.duration_minutes} phút</strong></span>
-                        </li>
-                        <li className="flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                          <span>File gốc: <strong>{pkg.original_photos}+ file</strong></span>
-                        </li>
-                        <li className="flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                          <span>Ảnh chỉnh màu: <strong>{pkg.edited_photos} ảnh</strong></span>
-                        </li>
-                        <li className="flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                          <span>Retouch chuyên sâu: <strong>{pkg.retouch_quota || 0} ảnh</strong></span>
-                        </li>
-                        <li className="flex items-center gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 flex-shrink-0" />
-                          <span>Giao file sau: <strong>{pkg.delivery_days} ngày</strong></span>
-                        </li>
-                      </ul>
-                    </div>
-
-                    <Link href={`/photographers?category=${pkg.category}`} className="block w-full">
-                      <Button className={`w-full rounded-xl font-bold text-xs h-11 ${
-                        isPopular ? 'bg-brand hover:opacity-90' : 'bg-slate-900 hover:bg-slate-800 text-white'
-                      }`}>
-                        Tìm thợ nhận gói này
-                        <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-                      </Button>
-                    </Link>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )
-          })}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16 items-stretch">
+          {DEMO_PACKAGES.map((pkg, idx) => (
+            <motion.div
+              key={pkg.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: idx * 0.1 }}
+              className="flex"
+            >
+              <PackageCard
+                pkg={pkg}
+                index={idx}
+                className="w-full"
+                onBookNow={handleOpenBooking}
+                actionLabel="Đặt lịch gói này"
+              />
+            </motion.div>
+          ))}
         </div>
 
         {/* Add-ons Services Section */}
@@ -147,68 +104,163 @@ export default function PackagesPage() {
           </div>
         </div>
 
-        {/* Comparison Table */}
+        {/* CP3 Comparison Table */}
         <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm mb-16 overflow-x-auto">
-          <h2 className="text-2xl font-black text-slate-900 mb-6">So Sánh Chi Tiết Quyền Lợi Gói</h2>
-          <table className="w-full text-left text-xs">
+          <div className="mb-6">
+            <span className="text-xs font-bold text-violet-600 uppercase tracking-wider bg-violet-50 px-2.5 py-1 rounded-md">
+              Bảng so sánh chi tiết
+            </span>
+            <h2 className="text-2xl md:text-3xl font-black text-slate-900 mt-2">
+              So Sánh Đầy Đủ Quyền Lợi 4 Gói Tiêu Chuẩn CP3
+            </h2>
+          </div>
+
+          <table className="w-full text-left text-xs min-w-[760px]">
             <thead>
               <tr className="border-b border-slate-200 text-slate-400 uppercase tracking-wider text-[11px]">
-                <th className="pb-3 font-bold">Tiêu chí</th>
-                <th className="pb-3 font-bold">Flash Shot</th>
-                <th className="pb-3 font-bold text-violet-600">Quick Date</th>
-                <th className="pb-3 font-bold">Vibe Sài Gòn</th>
-                <th className="pb-3 font-bold">Outdoor / Dã ngoại</th>
+                <th className="pb-3 font-bold w-1/5">Tiêu chí</th>
+                <th className="pb-3 font-bold text-emerald-700 w-1/5">
+                  1. FLASHY EXPRESS
+                </th>
+                <th className="pb-3 font-bold text-violet-600 w-1/5">
+                  2. FLASHY CASUAL 🔥
+                </th>
+                <th className="pb-3 font-bold text-indigo-600 w-1/5">
+                  3. FLASHY PRO ⭐
+                </th>
+                <th className="pb-3 font-bold text-amber-600 w-1/5">
+                  4. FLASHY SIGNATURE 👑
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               <tr>
-                <td className="py-3.5 font-semibold text-slate-900">Mức giá tham khảo</td>
-                <td className="py-3.5 font-bold text-violet-600">79.000đ - 99.000đ</td>
-                <td className="py-3.5 font-bold text-violet-600">150.000đ - 300.000đ</td>
-                <td className="py-3.5 font-bold text-violet-600">400.000đ - 700.000đ</td>
-                <td className="py-3.5 font-bold text-violet-600">800.000đ - 1.500.000đ</td>
+                <td className="py-3.5 font-bold text-slate-900">Giá niêm yết</td>
+                <td className="py-3.5 font-black text-emerald-600 text-sm">350.000 VNĐ</td>
+                <td className="py-3.5 font-black text-violet-600 text-sm">800.000 VNĐ</td>
+                <td className="py-3.5 font-black text-indigo-600 text-sm">1.500.000 VNĐ</td>
+                <td className="py-3.5 font-black text-amber-600 text-sm">3.200.000 VNĐ</td>
               </tr>
               <tr>
-                <td className="py-3.5 font-semibold text-slate-900">Thời lượng chụp</td>
-                <td className="py-3.5">15 - 20 phút</td>
-                <td className="py-3.5">30 - 60 phút</td>
-                <td className="py-3.5">2 - 3 tiếng</td>
-                <td className="py-3.5">Nửa ngày (4 tiếng)</td>
+                <td className="py-3.5 font-bold text-slate-900">Thiết bị sử dụng</td>
+                <td className="py-3.5 font-semibold text-slate-800">
+                  Điện thoại Flagship (iPhone 14 Pro / 15 Pro Max, Samsung Ultra)
+                </td>
+                <td className="py-3.5 font-semibold text-slate-800">
+                  Máy ảnh cơ bản (Crop / Full-frame entry-level)
+                </td>
+                <td className="py-3.5 font-semibold text-slate-800">
+                  Máy ảnh chuyên nghiệp (Full-frame chuyên dụng) + Hắt sáng
+                </td>
+                <td className="py-3.5 font-semibold text-slate-800">
+                  Máy ảnh cao cấp + Đèn phụ Studio / Hắt sáng chuyên dụng
+                </td>
               </tr>
               <tr>
-                <td className="py-3.5 font-semibold text-slate-900">Địa điểm di chuyển</td>
-                <td className="py-3.5">1 điểm cố định</td>
-                <td className="py-3.5">1 - 2 điểm gần nhau (&lt;3km)</td>
-                <td className="py-3.5">2 - 3 điểm nội thành</td>
-                <td className="py-3.5">Theo lộ trình thỏa thuận</td>
+                <td className="py-3.5 font-bold text-slate-900">Thời lượng chụp</td>
+                <td className="py-3.5 font-semibold">45 – 60 phút</td>
+                <td className="py-3.5 font-semibold">90 phút</td>
+                <td className="py-3.5 font-semibold">120 phút</td>
+                <td className="py-3.5 font-semibold">150 phút</td>
               </tr>
               <tr>
-                <td className="py-3.5 font-semibold text-slate-900">File ảnh gốc trả</td>
-                <td className="py-3.5">Toàn bộ (~30 file)</td>
-                <td className="py-3.5">Toàn bộ (~100 file)</td>
-                <td className="py-3.5">Toàn bộ (~250 file)</td>
-                <td className="py-3.5">Toàn bộ (~400 file)</td>
+                <td className="py-3.5 font-bold text-slate-900">Sản phẩm bàn giao</td>
+                <td className="py-3.5">
+                  5 – 10 ảnh đã chỉnh màu cơ bản + Toàn bộ file gốc
+                </td>
+                <td className="py-3.5">
+                  10 ảnh chỉnh màu (trong đó có 5 ảnh Retouch da & dáng kỹ) + Toàn bộ file gốc
+                </td>
+                <td className="py-3.5">
+                  15 ảnh chỉnh màu (trong đó có 10 ảnh Retouch da & dáng kỹ) + Toàn bộ file gốc
+                </td>
+                <td className="py-3.5">
+                  20 ảnh chỉnh màu (trong đó có 15 ảnh Retouch cấp tạp chí) + Toàn bộ file gốc
+                </td>
               </tr>
               <tr>
-                <td className="py-3.5 font-semibold text-slate-900">Ảnh chỉnh màu nghệ thuật</td>
-                <td className="py-3.5">3 - 5 ảnh</td>
-                <td className="py-3.5">15 ảnh</td>
-                <td className="py-3.5">40 ảnh</td>
-                <td className="py-3.5">60 ảnh</td>
+                <td className="py-3.5 font-bold text-slate-900">Hạn trả ảnh</td>
+                <td className="py-3.5 font-bold text-emerald-600">
+                  Bàn giao ngay tại chỗ / AirDrop / Link Drive trong ngày
+                </td>
+                <td className="py-3.5 font-semibold text-violet-700">
+                  3 – 5 ngày làm việc qua Cloud
+                </td>
+                <td className="py-3.5 font-semibold text-indigo-700">
+                  5 – 7 ngày làm việc qua Cloud
+                </td>
+                <td className="py-3.5 font-semibold text-amber-700">
+                  7 – 10 ngày làm việc qua Cloud
+                </td>
               </tr>
               <tr>
-                <td className="py-3.5 font-semibold text-slate-900">Retouch chân dung chi tiết</td>
-                <td className="py-3.5 text-slate-400">—</td>
-                <td className="py-3.5 font-semibold text-emerald-600">5 ảnh</td>
-                <td className="py-3.5 font-semibold text-emerald-600">10 ảnh</td>
-                <td className="py-3.5 font-semibold text-emerald-600">20 ảnh</td>
+                <td className="py-3.5 font-bold text-slate-900">Dịch vụ bao gồm</td>
+                <td className="py-3.5">
+                  Thợ chụp hướng dẫn tạo dáng cơ bản, di chuyển nội thành (&lt;8km)
+                </td>
+                <td className="py-3.5">
+                  Hướng dẫn tạo dáng, di chuyển cơ bản nội thành (&lt;8km)
+                </td>
+                <td className="py-3.5">
+                  Hướng dẫn tạo dáng chuyên sâu, hắt sáng hỗ trợ, tư vấn concept & phối đồ, di chuyển tiêu chuẩn
+                </td>
+                <td className="py-3.5 text-amber-900 bg-amber-50/50 p-2 rounded-xl">
+                  <strong>ĐÃ BAO GỒM Makeup + Làm tóc</strong> (1 Layout chuyên nghiệp), Lên Moodboard Concept riêng, hướng dẫn dáng cao cấp
+                </td>
               </tr>
               <tr>
-                <td className="py-3.5 font-semibold text-slate-900">Hạn giao file đám mây</td>
-                <td className="py-3.5">Trong 48 giờ</td>
-                <td className="py-3.5">Trong 3 ngày</td>
-                <td className="py-3.5">Trong 4 ngày</td>
-                <td className="py-3.5">Trong 5 ngày</td>
+                <td className="py-3.5 font-bold text-slate-900">Phân khúc thợ</td>
+                <td className="py-3.5 font-semibold text-slate-700">
+                  Creator / Thợ chụp Phone mát tay
+                </td>
+                <td className="py-3.5 font-semibold text-slate-700">
+                  Freelancer 1–2 năm kinh nghiệm
+                </td>
+                <td className="py-3.5 font-semibold text-slate-700">
+                  Freelancer cứng tay (2–4 năm kinh nghiệm), Portfolio kiểm duyệt đạt chuẩn Pro
+                </td>
+                <td className="py-3.5 font-semibold text-slate-700">
+                  Senior Photographer / KOLs nhiếp ảnh uy tín trên sàn
+                </td>
+              </tr>
+              <tr>
+                <td className="py-3.5 font-bold text-slate-900">Thao tác</td>
+                <td className="py-3.5">
+                  <Button
+                    size="sm"
+                    onClick={() => handleOpenBooking(DEMO_PACKAGES[0])}
+                    className="rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white h-9"
+                  >
+                    Đặt gói này
+                  </Button>
+                </td>
+                <td className="py-3.5">
+                  <Button
+                    size="sm"
+                    onClick={() => handleOpenBooking(DEMO_PACKAGES[1])}
+                    className="rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-700 text-white h-9"
+                  >
+                    Đặt gói này
+                  </Button>
+                </td>
+                <td className="py-3.5">
+                  <Button
+                    size="sm"
+                    onClick={() => handleOpenBooking(DEMO_PACKAGES[2])}
+                    className="rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white h-9"
+                  >
+                    Đặt gói này
+                  </Button>
+                </td>
+                <td className="py-3.5">
+                  <Button
+                    size="sm"
+                    onClick={() => handleOpenBooking(DEMO_PACKAGES[3])}
+                    className="rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white h-9"
+                  >
+                    Đặt gói này
+                  </Button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -228,14 +280,29 @@ export default function PackagesPage() {
               FLASHY giữ tiền an toàn cho đến khi bạn nhận ảnh và duyệt hài lòng. Trong 48 giờ sau khi nhận ảnh, bạn có thể yêu cầu chỉnh sửa thêm hoặc mở khiếu nại nếu dịch vụ không đúng cam kết.
             </p>
           </div>
-          <Link href="/photographers">
-            <Button className="h-12 px-8 bg-white text-slate-950 hover:bg-slate-100 rounded-2xl font-bold text-sm shadow-xl flex-shrink-0">
-              Chọn thợ và đặt ngay
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button
+              onClick={() => handleOpenBooking(DEMO_PACKAGES[1])}
+              className="h-12 px-6 bg-brand text-white hover:opacity-90 rounded-2xl font-bold text-sm shadow-xl flex-shrink-0"
+            >
+              Mở Modal Đặt Lịch Ngay
             </Button>
-          </Link>
+            <Link href="/photographers">
+              <Button className="h-12 px-6 bg-white text-slate-950 hover:bg-slate-100 rounded-2xl font-bold text-sm shadow-xl flex-shrink-0">
+                Xem danh sách thợ ảnh
+              </Button>
+            </Link>
+          </div>
         </div>
 
       </div>
+
+      {/* CP3 Booking Modal */}
+      <BookingModal
+        isOpen={isBookingModalOpen}
+        onClose={() => setIsBookingModalOpen(false)}
+        initialPackage={selectedBookingPkg}
+      />
     </div>
   )
 }

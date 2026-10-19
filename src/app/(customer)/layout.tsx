@@ -9,7 +9,7 @@ export default function CustomerLayout({
   return (
     <div className="flex min-h-screen flex-col bg-slate-50">
       <Header />
-      <main className="flex-1">{children}</main>
+      <main className="flex-1 pt-20 md:pt-24">{children}</main>
       <Footer />
     </div>
   )

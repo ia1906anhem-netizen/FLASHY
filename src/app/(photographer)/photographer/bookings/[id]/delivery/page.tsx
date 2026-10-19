@@ -113,7 +113,7 @@ export default function PhotographerDeliveryPage() {
               Tải Lên Bàn Giao File Ảnh #{bookingId || 'BK-892104'}
             </h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              Khách hàng: Nguyễn Thu Trang • Gói Vibe Sài Gòn (Yêu cầu: Toàn bộ ảnh gốc + 40 ảnh chỉnh màu)
+              Khách hàng: Nguyễn Thu Trang • Gói FLASHY CASUAL (Yêu cầu: Toàn bộ ảnh gốc + 10 ảnh chỉnh màu, 5 retouch kỹ)
             </p>
           </div>
 

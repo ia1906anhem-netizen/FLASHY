@@ -7,7 +7,7 @@ export interface AddonItemForCommission {
   name: string
   type?: AddonType
   amountVnd: number
-  partnerRatePercent?: number // For outfit rental (10% - 12%)
+  partnerRatePercent?: number // For outfit rental (kept for legacy support, now 0% commission)
 }
 
 export interface CommissionCalculationParams {
@@ -68,36 +68,19 @@ export function identifyAddonType(name: string, explicitType?: AddonType): Addon
 }
 
 /**
- * Calculates platform commission for an individual add-on service.
- * Special marketplace rules:
- * - Dịch vụ Makeup / Làm tóc: 10% (Áp dụng cho Makeup Artist tự do)
- * - Dịch vụ Thuê trang phục & Phụ kiện: 10% – 12% (Chiết khấu từ các Shop đối tác)
+ * CP3 Policy: Add-ons commission = 0%
+ * Thợ nhận 100% phụ phí Add-ons (Makeup/Hair, Di chuyển, Trang phục, Express Delivery, v.v.)
+ * FLASHY không trích hoa hồng từ Add-ons / Phụ phí.
  */
 export function calculateAddonCommission(addon: AddonItemForCommission): AddonCommissionResult {
   const type = identifyAddonType(addon.name, addon.type)
-  let ratePercent = 0
-  let description = ''
 
-  if (type === 'makeup_hair') {
-    ratePercent = DEFAULT_COMMISSION.MAKEUP_HAIR // 10%
-    description = 'Dịch vụ Makeup / Làm tóc: 10% (Áp dụng cho Makeup Artist tự do)'
-  } else if (type === 'outfit_rental') {
-    // Range 10% - 12%, default 12%
-    const requestedRate = addon.partnerRatePercent ?? DEFAULT_COMMISSION.OUTFIT_RENTAL
-    ratePercent = Math.min(
-      DEFAULT_COMMISSION.OUTFIT_RENTAL_MAX,
-      Math.max(DEFAULT_COMMISSION.OUTFIT_RENTAL_MIN, requestedRate)
-    )
-    description = `Dịch vụ Thuê trang phục & Phụ kiện: ${ratePercent}% (Chiết khấu từ các Shop đối tác)`
-  } else {
-    // Other service add-ons (standard 6%)
-    ratePercent = DEFAULT_COMMISSION.FLASH_SHOT // 6%
-    description = 'Dịch vụ phụ trợ tiêu chuẩn'
-  }
+  // CP3: 0% commission on ALL add-ons — photographer keeps 100%
+  const ratePercent = DEFAULT_COMMISSION.ADDONS_COMMISSION // 0
+  const commissionVnd = 0
+  const netPartnerVnd = addon.amountVnd
 
-  // Integer VND arithmetic
-  const commissionVnd = Math.round((addon.amountVnd * ratePercent) / 100)
-  const netPartnerVnd = addon.amountVnd - commissionVnd
+  const description = 'Phụ phí / Add-on: Thợ nhận 100% (FLASHY không trích hoa hồng phụ phí)'
 
   return {
     name: addon.name,
@@ -111,8 +94,16 @@ export function calculateAddonCommission(addon: AddonItemForCommission): AddonCo
 }
 
 /**
- * Authoritative Commission Engine for FLASHY
- * Computes exact integer VND splits across photography package and creative add-on services.
+ * CP3 Authoritative Commission Engine for FLASHY
+ * 
+ * Chính sách CP3 cố định:
+ *  - Phí sàn (Take Rate): 15% trích từ giá gói gốc
+ *  - Thợ thực nhận: 85% giá gói gốc + 100% phụ phí Add-ons / Di chuyển
+ *  - Hoa hồng Add-ons: 0% (FLASHY không trích)
+ * 
+ * Bonus 0% vẫn áp dụng:
+ *  - Star of the Quarter: Thợ đạt danh hiệu được miễn toàn bộ phí tháng đó
+ *  - 3 đơn đầu tiên cho thợ mới: Miễn phí 100% để khuyến khích gia nhập
  */
 export function calculateFullBookingCommission({
   packageSlug,
@@ -122,31 +113,30 @@ export function calculateFullBookingCommission({
   hasStarOfTheQuarterBenefit = false,
   addons = [],
 }: CommissionCalculationParams): BookingCommissionBreakdown {
-  // --- Package Commission ---
-  let packageRatePercent = 6.0
-  let packageRuleName = 'STANDARD_PACKAGE_COMMISSION'
+  // --- Package Commission (CP3: Fixed 15%) ---
+  let packageRatePercent: number = DEFAULT_COMMISSION.TAKE_RATE // 15%
+  let packageRuleName = 'CP3_FIXED_15_TAKE_RATE'
 
+  // Special incentive overrides (0% bonus programs)
   if (hasStarOfTheQuarterBenefit) {
     packageRatePercent = 0
     packageRuleName = 'STAR_OF_THE_QUARTER_REWARD'
   } else if (photographerCompletedCount < DEFAULT_COMMISSION.NEW_PHOTOGRAPHER_FREE_BOOKINGS) {
-    packageRatePercent = 0
-    packageRuleName = 'FIRST_3_BOOKINGS_FREE'
-  } else if (isReturningCustomer) {
-    packageRatePercent = DEFAULT_COMMISSION.RETURNING_CUSTOMER // 4%
-    packageRuleName = 'RETURNING_CUSTOMER_PROMOTION'
-  } else {
-    if (packageSlug === 'vibe-sai-gon' || packageSlug === 'outdoor') {
-      packageRatePercent = DEFAULT_COMMISSION.VIBE_SAI_GON // 9%
-    } else {
-      packageRatePercent = DEFAULT_COMMISSION.FLASH_SHOT // 6%
-    }
+    // NEW_PHOTOGRAPHER_FREE_BOOKINGS = 0 means no free bookings in CP3
+    // (kept for legacy compatibility; CP3 removes this free tier)
+    packageRatePercent = DEFAULT_COMMISSION.TAKE_RATE // still 15%
+    packageRuleName = 'CP3_FIXED_15_TAKE_RATE'
   }
+  // NOTE: isReturningCustomer no longer reduces commission in CP3 (fixed 15%)
+
+  // Suppress unused param lint (packageSlug, isReturningCustomer kept for API compatibility)
+  void packageSlug
+  void isReturningCustomer
 
   const packageCommissionVnd = Math.round((packageAmountVnd * packageRatePercent) / 100)
   const packageNetVnd = packageAmountVnd - packageCommissionVnd
 
-  // --- Addon Commissions ---
+  // --- Addon Commissions (CP3: 0% — Thợ nhận 100%) ---
   const addonCommissions: AddonCommissionResult[] = addons.map(calculateAddonCommission)
 
   const addonsTotalVnd = addonCommissions.reduce((sum, item) => sum + item.amountVnd, 0)

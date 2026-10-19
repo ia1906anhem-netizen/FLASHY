@@ -21,14 +21,21 @@ import {
   Users,
   TrendingUp,
   Play,
+  Navigation,
+  Loader2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { PHOTOGRAPHY_CATEGORIES } from '@/lib/constants'
-import { CityLocationPicker } from '@/components/shared/city-location-picker'
+import { CityLocationPicker, type SelectedLocationData } from '@/components/shared/city-location-picker'
 import { formatVND } from '@/lib/utils'
+import {
+  getCurrentUserCoordinates,
+  findNearestDistrict,
+  type Coordinates
+} from '@/lib/geolocation'
 import {
   getApprovedProviders,
   getStoredBookings,
@@ -44,43 +51,43 @@ function formatRating(v: number): string {
 
 const PACKAGES = [
   {
-    slug: 'flash-shot',
-    name: 'Flash Shot ⚡',
-    price: '79K–99K',
-    duration: '15–20 phút',
-    photos: '3–5 ảnh đã chỉnh',
+    slug: 'flashy-express',
+    name: 'FLASHY EXPRESS ⚡',
+    price: '350.000 VNĐ',
+    duration: '45–60 phút',
+    photos: '5–10 ảnh màu + File gốc',
     color: 'from-violet-500 to-purple-600',
     icon: '⚡',
     popular: false,
   },
   {
-    slug: 'quick-date',
-    name: 'Quick Date ☕',
-    price: '150K–300K',
-    duration: '30–60 phút',
-    photos: '15 ảnh đã chỉnh',
+    slug: 'flashy-casual',
+    name: 'FLASHY CASUAL 📷',
+    price: '800.000 VNĐ',
+    duration: '90 phút',
+    photos: '10 ảnh màu (5 retouch kỹ) + File gốc',
     color: 'from-pink-500 to-rose-600',
-    icon: '☕',
+    icon: '📷',
     popular: true,
   },
   {
-    slug: 'vibe-sai-gon',
-    name: 'Vibe Sài Gòn 🌆',
-    price: '400K–700K',
-    duration: '2–3 giờ',
-    photos: '40 ảnh + 10 retouch',
+    slug: 'flashy-pro',
+    name: 'FLASHY PRO 🎯',
+    price: '1.500.000 VNĐ',
+    duration: '120 phút',
+    photos: '15 ảnh màu (10 retouch kỹ) + File gốc',
     color: 'from-orange-500 to-amber-600',
-    icon: '🌆',
+    icon: '🎯',
     popular: false,
   },
   {
-    slug: 'outdoor',
-    name: 'Outdoor / Dã ngoại 🏔️',
-    price: '800K–1.5M',
-    duration: 'Nửa ngày',
-    photos: '60 ảnh + 20 retouch',
+    slug: 'flashy-signature',
+    name: 'FLASHY SIGNATURE 👑',
+    price: '3.200.000 VNĐ',
+    duration: '150 phút',
+    photos: '20 ảnh màu (15 retouch kỹ) + File gốc',
     color: 'from-emerald-500 to-teal-600',
-    icon: '🏔️',
+    icon: '👑',
     popular: false,
   },
 ]
@@ -136,6 +143,8 @@ export default function HomePage() {
   }>>([])
   const [userCoins, setUserCoins] = useState<number>(0)
   const [isClientLoaded, setIsClientLoaded] = useState(false)
+  const [userCoords, setUserCoords] = useState<Coordinates | null>(null)
+  const [isLocatingNearby, setIsLocatingNearby] = useState(false)
 
   useEffect(() => {
     const refreshData = () => {
@@ -188,7 +197,32 @@ export default function HomePage() {
     const params = new URLSearchParams()
     if (searchQuery) params.set('q', searchQuery)
     if (searchLocation) params.set('city', searchLocation)
+    if (userCoords) {
+      params.set('lat', userCoords.latitude.toString())
+      params.set('lng', userCoords.longitude.toString())
+    }
     window.location.href = `/photographers?${params.toString()}`
+  }
+
+  const handleQuickNearby = async () => {
+    setIsLocatingNearby(true)
+    try {
+      const coords = await getCurrentUserCoordinates()
+      setUserCoords(coords)
+      const geocoded = findNearestDistrict(coords)
+      if (geocoded.district) setSearchLocation(geocoded.district)
+      const params = new URLSearchParams()
+      if (searchQuery) params.set('q', searchQuery)
+      params.set('city', geocoded.district || geocoded.city || 'all')
+      params.set('lat', coords.latitude.toString())
+      params.set('lng', coords.longitude.toString())
+      params.set('nearby', 'true')
+      window.location.href = `/photographers?${params.toString()}`
+    } catch (err: any) {
+      alert(err?.message || 'Không thể lấy vị trí hiện tại. Vui lòng bật định vị trên trình duyệt của bạn.')
+    } finally {
+      setIsLocatingNearby(false)
+    }
   }
 
   const statsDisplay = [
@@ -235,7 +269,7 @@ export default function HomePage() {
   return (
     <div className="w-full">
       {/* ============ HERO SECTION ============ */}
-      <section className="relative min-h-screen flex items-center justify-center">
+      <section className="relative min-h-screen flex items-center justify-center -mt-20 md:-mt-24">
         {/* Background image */}
         <div className="absolute inset-0">
           <Image
@@ -336,6 +370,11 @@ export default function HomePage() {
                     <CityLocationPicker
                       value={searchLocation}
                       onChange={(val) => setSearchLocation(val)}
+                      onLocationSelect={(data) => {
+                        if (data.coordinates) {
+                          setUserCoords(data.coordinates)
+                        }
+                      }}
                       placeholder="Chọn thành phố / quận"
                       variant="hero-glass"
                     />
@@ -352,9 +391,24 @@ export default function HomePage() {
 
               {/* Location Quick Tabs */}
               <div className="flex items-center gap-1.5 mt-3.5 flex-wrap justify-center text-xs relative z-10">
-                <span className="text-white/70 font-bold flex items-center gap-1 text-[11px]">
-                  <MapPin className="w-3.5 h-3.5 text-pink-400" />
-                  Khu vực nhanh:
+                {/* Nút định vị GPS tự động tức thì */}
+                <button
+                  type="button"
+                  onClick={handleQuickNearby}
+                  disabled={isLocatingNearby}
+                  className="px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 bg-gradient-to-r from-pink-500 via-rose-500 to-violet-600 text-white shadow-glow-purple hover:scale-105 active:scale-95 border border-white/20"
+                >
+                  {isLocatingNearby ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Navigation className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                  )}
+                  <span>{isLocatingNearby ? 'Đang dò GPS...' : 'Gần tôi nhất (GPS)'}</span>
+                </button>
+
+                <span className="text-white/60 font-medium flex items-center gap-1 text-[11px] ml-1">
+                  <MapPin className="w-3 h-3 text-pink-400" />
+                  Khu vực:
                 </span>
                 {['Tất cả', 'TP. Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Đà Lạt', 'Quận 1', 'Quận 3'].map((dist) => (
                   <button
@@ -362,6 +416,7 @@ export default function HomePage() {
                     type="button"
                     onClick={() => {
                       setSearchLocation(dist === 'Tất cả' ? '' : dist)
+                      setUserCoords(null)
                     }}
                     className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
                       (dist === 'Tất cả' && !searchLocation) || searchLocation === dist
@@ -476,7 +531,7 @@ export default function HomePage() {
           <div className="text-center mb-12">
             <Badge variant="secondary" className="mb-3">Gói dịch vụ</Badge>
             <h2 className="text-3xl md:text-4xl font-black mb-4">
-              Bắt đầu từ <span className="text-gradient">79,000đ</span>
+              Bắt đầu từ <span className="text-gradient">350.000đ</span>
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto">
               Gói chụp linh hoạt phù hợp với mọi ngân sách và mục đích
@@ -506,7 +561,7 @@ export default function HomePage() {
                     {/* Content */}
                     <div className="bg-card border border-t-0 border-border/50 p-4 rounded-b-2xl">
                       <h3 className="font-bold text-base mb-1">{pkg.name}</h3>
-                      <p className="text-2xl font-black text-primary mb-3">{pkg.price}<span className="text-sm font-normal text-muted-foreground">đ</span></p>
+                      <p className="text-2xl font-black text-primary mb-3">{pkg.price}</p>
                       <div className="space-y-1.5 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1.5">
                           <Clock className="w-3.5 h-3.5" />
@@ -901,9 +956,10 @@ export default function HomePage() {
               </p>
               <div className="space-y-3 mb-8">
                 {[
-                  '3 đơn đầu tiên: 0% hoa hồng',
-                  'Thanh toán an toàn qua escrow',
-                  'Huy chương & thưởng theo hiệu suất',
+                  'Phí sàn 15% cố định • Thợ nhận 85% thù lao',
+                  'Thợ nhận 100% phụ phí Add-ons & di chuyển',
+                  'Thanh toán an toàn qua ký quỹ Escrow 48h',
+                  'Thưởng Star of the Quarter (0% phí sàn)',
                   'Hỗ trợ 24/7 từ đội ngũ FLASHY',
                 ].map((benefit) => (
                   <div key={benefit} className="flex items-center gap-2 text-sm">
@@ -933,10 +989,10 @@ export default function HomePage() {
                 </div>
                 <div className="space-y-3">
                   {[
-                    { label: 'Flash Shot × 10/tháng', income: '~790K–990K' },
-                    { label: 'Quick Date × 15/tháng', income: '~2.2M–4.5M' },
-                    { label: 'Vibe Sài Gòn × 8/tháng', income: '~3.2M–5.6M' },
-                    { label: 'Mixed (Top Performer)', income: '~8M–15M' },
+                    { label: 'FLASHY EXPRESS × 15/tháng', income: '~4.46M' },
+                    { label: 'FLASHY CASUAL × 10/tháng', income: '~6.8M' },
+                    { label: 'FLASHY PRO × 8/tháng', income: '~10.2M' },
+                    { label: 'Mixed CP3 (Top Performer)', income: '~15M–25M' },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between text-sm py-2 border-b border-border last:border-0">
                       <span className="text-muted-foreground">{item.label}</span>
@@ -976,7 +1032,7 @@ export default function HomePage() {
               },
               {
                 q: 'Bao lâu tôi nhận được ảnh?',
-                a: 'Tùy gói: Flash Shot 2 ngày, Quick Date 3 ngày, Vibe Sài Gòn 5 ngày, Outdoor 7 ngày kể từ ngày chụp.'
+                a: 'Tùy gói: FLASHY EXPRESS trả ngay trong ngày (AirDrop/Drive), FLASHY CASUAL 3–5 ngày, FLASHY PRO 5–7 ngày, FLASHY SIGNATURE 7–10 ngày qua Cloud kể từ ngày chụp.'
               },
             ].map((faq, i) => (
               <motion.div
@@ -1030,7 +1086,12 @@ export default function HomePage() {
                   Tìm thợ chụp ngay <Sparkles className="w-5 h-5" />
                 </Link>
               </Button>
-              <Button size="xl" variant="outline" className="border-white/30 text-white hover:bg-white/10" asChild>
+              <Button
+                size="xl"
+                variant="outline"
+                className="border-2 border-violet-500/50 bg-slate-900/80 text-white font-bold backdrop-blur-sm shadow-sm transition-all duration-300 hover:border-amber-400 hover:bg-gradient-to-r hover:from-violet-600/30 hover:to-orange-500/30 hover:text-white hover:shadow-glow-purple"
+                asChild
+              >
                 <Link href="/register">Tạo tài khoản miễn phí</Link>
               </Button>
             </div>

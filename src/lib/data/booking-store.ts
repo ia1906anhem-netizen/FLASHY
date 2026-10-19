@@ -150,7 +150,14 @@ export function createPersistentBooking(data: {
     uploaded_photos_count: {
       original: 0,
       edited: 0,
-      retouch_quota: data.package_slug === 'vibe-sai-gon' ? 10 : data.package_slug === 'outdoor' ? 20 : 5,
+      retouch_quota:
+        data.package_slug === 'flashy-signature'
+          ? 15
+          : data.package_slug === 'flashy-pro'
+          ? 10
+          : data.package_slug === 'flashy-casual'
+          ? 5
+          : 0,
       retouched: 0,
     },
   }
@@ -385,7 +392,7 @@ export function addOrUpdateApprovedProvider(
     specialty: provider.specialty || 'Portrait · Concept',
     rating: provider.rating ?? 5.0,
     reviews: provider.reviews ?? 0,
-    starting_price: provider.starting_price || 99000,
+    starting_price: provider.starting_price || 350000,
     is_verified: true,
     is_sponsored: provider.is_sponsored || false,
     badge: provider.badge || '⭐ Đã duyệt KYC',
@@ -659,6 +666,9 @@ export function resetCleanSlateStore(): void {
   localStorage.removeItem('flashy_user_coins')
   localStorage.removeItem('flashy_admin_reviews')
   localStorage.removeItem('flashy_admin_commission_rates')
+  localStorage.removeItem('flashy_photographer_portfolio')
+  localStorage.removeItem('flashy_photographer_packages')
+  localStorage.removeItem('flashy_photographer_blocked_slots')
   // Clear any user-specific booking caches
   try {
     for (let i = localStorage.length - 1; i >= 0; i--) {

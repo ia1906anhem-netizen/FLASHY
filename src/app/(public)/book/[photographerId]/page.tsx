@@ -22,8 +22,12 @@ import {
   QrCode,
   Wallet,
   Zap,
-  Info
+  Info,
+  Smartphone,
+  Layers,
+  UserCheck
 } from 'lucide-react'
+import { DEMO_PACKAGES } from '@/lib/data/mock-data'
 import { formatVND } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -56,44 +60,38 @@ function BookingWizardContent() {
         is_verified: foundApproved.is_verified,
         district: foundApproved.district || 'Quận 1',
         city: foundApproved.city || 'Hồ Chí Minh',
-        starting_price: foundApproved.starting_price || 99000,
+        starting_price: foundApproved.starting_price || 350000,
       }
     : null
 
   // Wizard Step (1: Package, 2: DateTime & Location, 3: Addons & Notes, 4: Review & Payment)
   const [step, setStep] = useState<number>(1)
 
-  const availablePackages = photographer ? [
-    {
-      id: `${photographer.id}-pkg-basic`,
-      slug: 'basic',
-      name: 'Gói Chụp Tiêu Chuẩn',
-      category: 'Cơ bản',
-      base_price: photographer.starting_price || 99000,
-      duration_minutes: 60,
-      description: 'Chụp ngoại cảnh hoặc cá nhân cơ bản, giao toàn bộ file gốc và 10 ảnh chỉnh màu.',
-      original_photos: 30,
-      edited_photos: 10,
-      retouch_quota: 3,
-      delivery_days: 2,
-    },
-    {
-      id: `${photographer.id}-pkg-pro`,
-      slug: 'pro',
-      name: 'Gói Chụp Lookbook / Concept',
-      category: 'Phổ biến',
-      base_price: Math.round(((photographer.starting_price || 99000) * 1.8) / 10000) * 10000,
-      duration_minutes: 120,
-      description: 'Chụp chuyên sâu với đầy đủ concept, chỉnh sửa chi tiết và hỗ trợ stylist.',
-      original_photos: 80,
-      edited_photos: 25,
-      retouch_quota: 10,
-      delivery_days: 3,
-    }
-  ] : []
+  const availablePackages = useMemo(() => {
+    if (!photographer) return []
+    try {
+      const stored = localStorage.getItem('flashy_photographer_packages')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((p: any) => ({
+            ...p,
+            id: p.id || `${photographer.id}-${p.slug}`,
+          }))
+        }
+      }
+    } catch {}
+
+    return DEMO_PACKAGES.map((pkg) => ({
+      ...pkg,
+      id: `${photographer.id}-${pkg.slug}`,
+    }))
+  }, [photographer])
 
   // Booking selections
-  const [selectedPkgId, setSelectedPkgId] = useState<string>(preselectedPkgId || (availablePackages[0]?.id ?? 'pkg-basic'))
+  const [selectedPkgId, setSelectedPkgId] = useState<string>(
+    preselectedPkgId || (availablePackages[0]?.id ?? 'pkg-flashy-express')
+  )
   const [shootingDate, setShootingDate] = useState<string>('')
   const [shootingTime, setShootingTime] = useState<string>('09:00')
   const [locationName, setLocationName] = useState<string>('')
@@ -110,15 +108,15 @@ function BookingWizardContent() {
   const [bookingSuccess, setBookingSuccess] = useState<any>(null)
 
   const selectedPackage = availablePackages.find(p => p.id === selectedPkgId) || availablePackages[0] || {
-    id: 'pkg-default',
-    slug: 'basic',
-    name: 'Gói Chụp Tiêu Chuẩn',
-    category: 'Cơ bản',
-    base_price: 99000,
+    id: 'pkg-flashy-express',
+    slug: 'flashy-express',
+    name: 'FLASHY EXPRESS',
+    category: 'lifestyle',
+    base_price: 350000,
     duration_minutes: 60,
-    original_photos: 30,
+    original_photos: 50,
     edited_photos: 10,
-    delivery_days: 2
+    delivery_days: 1
   }
 
   // Cost calculations
@@ -354,30 +352,71 @@ function BookingWizardContent() {
                         <div
                           key={pkg.id}
                           onClick={() => setSelectedPkgId(pkg.id)}
-                          className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
+                          className={`p-5 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
                             isSelected
                               ? 'border-violet-600 bg-violet-50/40 shadow-md ring-2 ring-violet-500/10'
                               : 'border-slate-200 hover:border-slate-300 bg-white'
                           }`}
                         >
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <span className="text-[10px] font-bold text-violet-600 uppercase tracking-wider bg-white px-2 py-0.5 rounded border border-violet-200">
-                                {pkg.category}
-                              </span>
-                              <h4 className="font-black text-slate-900 text-base mt-1">{pkg.name}</h4>
+                          <div>
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <span className="text-[10px] font-bold text-violet-600 uppercase tracking-wider bg-white px-2 py-0.5 rounded border border-violet-200">
+                                  {pkg.category || 'Gói chuẩn CP3'}
+                                </span>
+                                <h4 className="font-black text-slate-900 text-base mt-1">{pkg.name}</h4>
+                              </div>
+                              <div className="text-right">
+                                <span className="font-black text-violet-700 text-lg">{formatVND(pkg.base_price)}</span>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <span className="font-black text-violet-700 text-lg">{formatVND(pkg.base_price)}</span>
+                            <p className="text-xs text-slate-500 mb-3 line-clamp-2">{pkg.description}</p>
+                            
+                            {/* CP3 Fields */}
+                            <div className="text-[11px] text-slate-700 space-y-2 pt-2 border-t border-slate-100">
+                              {pkg.equipment && (
+                                <p className="flex items-start gap-1.5">
+                                  <Camera className="w-3.5 h-3.5 text-violet-600 flex-shrink-0 mt-0.5" />
+                                  <span>Thiết bị: <strong className="text-slate-800">{pkg.equipment}</strong></span>
+                                </p>
+                              )}
+                              <p className="flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                                <span>Thời lượng: <strong>{pkg.duration_text || `${pkg.duration_minutes} phút`}</strong></span>
+                              </p>
+                              {pkg.deliverables && (
+                                <p className="flex items-start gap-1.5">
+                                  <Layers className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0 mt-0.5" />
+                                  <span>Bàn giao: <strong>{pkg.deliverables}</strong></span>
+                                </p>
+                              )}
+                              {pkg.delivery_time && (
+                                <p className="flex items-center gap-1.5 text-emerald-700 font-semibold">
+                                  <Calendar className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                                  <span>Hạn trả: {pkg.delivery_time}</span>
+                                </p>
+                              )}
+                              {pkg.service_includes && (
+                                <p className="flex items-start gap-1.5 text-slate-600 bg-slate-50 p-1.5 rounded-lg border border-slate-100">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                                  <span>Bao gồm: {pkg.service_includes}</span>
+                                </p>
+                              )}
+                              {pkg.photographer_tier && (
+                                <p className="flex items-center gap-1.5 text-slate-600 text-[10px]">
+                                  <UserCheck className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                                  <span>Phân khúc: <strong>{pkg.photographer_tier}</strong></span>
+                                </p>
+                              )}
                             </div>
                           </div>
-                          <p className="text-xs text-slate-500 mb-3 line-clamp-2">{pkg.description}</p>
-                          <div className="text-[11px] text-slate-600 space-y-1 pt-2 border-t border-slate-100">
-                            <p>⏱️ Thời lượng: <strong>{pkg.duration_minutes} phút</strong></p>
-                            <p>📸 File nhận: <strong>{pkg.original_photos} gốc / {pkg.edited_photos} chỉnh màu</strong></p>
-                            {pkg.retouch_quota > 0 && (
-                              <p className="text-amber-600 font-semibold">✨ Retouch chuyên sâu: {pkg.retouch_quota} ảnh</p>
-                            )}
+
+                          <div className="pt-3 mt-3 border-t border-slate-100">
+                            <span className={`text-[11px] font-bold block text-center py-1 rounded-xl ${
+                              isSelected ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {isSelected ? '✓ Đang chọn gói này' : 'Bấm để chọn gói'}
+                            </span>
                           </div>
                         </div>
                       )
@@ -564,16 +603,9 @@ function BookingWizardContent() {
                             <div key={idx} className="flex justify-between text-[11px] pl-2 py-0.5 bg-white/70 rounded-lg px-2">
                               <div>
                                 <span className="font-semibold text-slate-800">• {ad.name}</span>
-                                {ad.type === 'makeup_hair' && (
-                                  <span className="text-[10px] text-pink-700 font-bold ml-1.5 bg-pink-50 px-1.5 py-0.2 rounded">
-                                    MUA Tự Do (10% Phí sàn: {formatVND(ad.commissionVnd)})
-                                  </span>
-                                )}
-                                {ad.type === 'outfit_rental' && (
-                                  <span className="text-[10px] text-indigo-700 font-bold ml-1.5 bg-indigo-50 px-1.5 py-0.2 rounded">
-                                    Shop Đối Tác ({ad.ratePercent}% Chiết khấu: {formatVND(ad.commissionVnd)})
-                                  </span>
-                                )}
+                                <span className="text-[10px] text-emerald-700 font-bold ml-1.5 bg-emerald-50 px-1.5 py-0.2 rounded">
+                                  Thợ nhận 100% phụ phí
+                                </span>
                               </div>
                               <span className="font-bold text-slate-900">+{formatVND(ad.amountVnd)}</span>
                             </div>

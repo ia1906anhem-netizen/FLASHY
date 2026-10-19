@@ -113,7 +113,7 @@ export default function CustomerDashboardPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-slate-50 pt-20 md:pt-24 pb-8">
+    <div className="min-h-screen bg-slate-50 py-8">
       <div className="container mx-auto px-4 max-w-7xl">
         
         {/* Welcome Banner & Loyalty Card */}
@@ -377,7 +377,7 @@ export default function CustomerDashboardPage() {
                       {p.district || p.location}
                     </p>
                     <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                      <span className="font-black text-violet-700 text-xs">{formatVND(p.starting_price || 79000)}</span>
+                      <span className="font-black text-violet-700 text-xs">{formatVND(p.starting_price || 350000)}</span>
                       <Link href={`/book/${p.id}`}>
                         <Button size="sm" className="h-7 px-3 bg-brand text-white rounded-lg text-[11px] font-bold">
                           Đặt lịch

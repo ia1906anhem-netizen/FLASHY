@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Bell, BookOpen, Star, Package, Zap, Check, X, Settings } from 'lucide-react'
+import { Bell, BookOpen, Star, Package, Zap, Check, X, Settings, Image as ImageIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatRelativeTimeVN } from '@/lib/utils'
 
-type NotifType = 'booking' | 'review' | 'payment' | 'promotion' | 'system'
+type NotifType = 'booking' | 'delivery' | 'review' | 'payment' | 'promotion' | 'system'
 
 interface Notification {
   id: string
@@ -21,6 +21,7 @@ interface Notification {
 
 const TYPE_CONFIG: Record<NotifType, { icon: React.ElementType; color: string; bg: string }> = {
   booking: { icon: BookOpen, color: 'text-blue-600', bg: 'bg-blue-50' },
+  delivery: { icon: ImageIcon, color: 'text-purple-600', bg: 'bg-purple-50' },
   review: { icon: Star, color: 'text-amber-600', bg: 'bg-amber-50' },
   payment: { icon: Zap, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   promotion: { icon: Package, color: 'text-violet-600', bg: 'bg-violet-50' },
@@ -31,31 +32,47 @@ export default function CustomerNotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [filter, setFilter] = useState<'all' | 'unread'>('all')
 
-  // Load real notifications from localStorage if any
-  useState(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        const stored = localStorage.getItem('flashy_notifications')
-        if (stored) {
-          setNotifications(JSON.parse(stored))
+  useEffect(() => {
+    const load = () => {
+      try {
+        if (typeof window !== 'undefined') {
+          const stored = localStorage.getItem('flashy_notifications')
+          if (stored) {
+            setNotifications(JSON.parse(stored))
+          }
         }
-      }
+      } catch {}
+    }
+    load()
+    window.addEventListener('flashy_notifications_updated', load)
+    window.addEventListener('storage', load)
+    return () => {
+      window.removeEventListener('flashy_notifications_updated', load)
+      window.removeEventListener('storage', load)
+    }
+  }, [])
+
+  const saveToStorage = (updated: Notification[]) => {
+    setNotifications(updated)
+    try {
+      localStorage.setItem('flashy_notifications', JSON.stringify(updated))
+      window.dispatchEvent(new Event('flashy_notifications_updated'))
     } catch {}
-  })
+  }
 
   const unreadCount = notifications.filter(n => !n.read).length
   const filtered = filter === 'unread' ? notifications.filter(n => !n.read) : notifications
 
   const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })))
+    saveToStorage(notifications.map(n => ({ ...n, read: true })))
   }
 
   const markRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
+    saveToStorage(notifications.map(n => n.id === id ? { ...n, read: true } : n))
   }
 
   const dismiss = (id: string) => {
-    setNotifications(prev => prev.filter(n => n.id !== id))
+    saveToStorage(notifications.filter(n => n.id !== id))
   }
 
   return (

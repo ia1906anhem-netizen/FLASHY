@@ -26,6 +26,7 @@ export default function PhotographerWithdrawalsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const [history, setHistory] = useState<any[]>([])
+  const [photographerAccountName, setPhotographerAccountName] = useState('NGUYEN MINH TRI')
 
   const loadData = () => {
     // Compute withdrawable balance from completed bookings
@@ -42,10 +43,23 @@ export default function PhotographerWithdrawalsPage() {
 
     setAvailableBalance(netAvailable)
     setHistory(storedHistory)
+
+    try {
+      const storedUser = localStorage.getItem('flashy_current_user')
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser)
+        if (parsed?.name || parsed?.full_name) {
+          setPhotographerAccountName((parsed.name || parsed.full_name).toUpperCase())
+        }
+      }
+    } catch {}
   }
 
   useEffect(() => {
     loadData()
+    const handleUpdate = () => loadData()
+    window.addEventListener('flashy_bookings_updated', handleUpdate)
+    return () => window.removeEventListener('flashy_bookings_updated', handleUpdate)
   }, [])
 
   const handleWithdraw = (e: React.FormEvent) => {
@@ -165,12 +179,23 @@ export default function PhotographerWithdrawalsPage() {
                 </div>
                 <div>
                   <h4 className="font-bold text-slate-900 text-xs">Ngân hàng TMCP Ngoại Thương (Vietcombank)</h4>
-                  <p className="text-[11px] text-slate-500 font-mono">Số TK: 0071 0008 8923 • Chủ TK: NGUYEN MINH TRI</p>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    Số TK: 0071 0008 8923 • Chủ TK: {photographerAccountName}
+                  </p>
                 </div>
               </div>
               <Badge className="bg-emerald-600 text-white">Chính chủ • Đã KYC</Badge>
             </div>
           </div>
+
+          {availableBalance === 0 && (
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+              <span>
+                Số dư khả dụng hiện tại là <strong>0đ</strong>. Bạn cần hoàn tất buổi chụp và khách hàng duyệt nghiệm thu ảnh để phát sinh thù lao có thể rút về tài khoản ngân hàng.
+              </span>
+            </div>
+          )}
 
           {/* Amount input */}
           <div>
