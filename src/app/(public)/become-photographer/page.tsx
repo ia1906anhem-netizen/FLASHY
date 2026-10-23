@@ -36,7 +36,7 @@ export default function BecomePhotographerPage() {
           <Badge variant="verified" className="mb-3 px-3 py-1 text-xs">
             Dành cho Freelance Photographers & Sinh viên Nhiếp ảnh
           </Badge>
-          <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight mb-4">
+          <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight leading-[1.3] md:leading-[1.3] mb-4">
             Biến Đam Mê Bấm Máy Thành Thu Nhập Ổn Định
           </h1>
           <p className="text-base text-slate-600 leading-relaxed mb-8">

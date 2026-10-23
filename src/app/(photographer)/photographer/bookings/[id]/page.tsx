@@ -34,6 +34,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getBookingById, updateBookingStatus, getStoredBookings, PersistentBooking } from '@/lib/data/booking-store'
 import { calculateFullBookingCommission } from '@/lib/utils/commission'
+import { getEscrowRemainingMs, formatCountdownShort } from '@/lib/utils/escrow-engine'
 
 export default function PhotographerBookingDetailPage() {
   const params = useParams()
@@ -83,23 +84,28 @@ export default function PhotographerBookingDetailPage() {
     )
   }
 
-  // Calculate commission breakdown with special add-on rates (Makeup 10%, Outfit 10-12%)
+  // Marketplace Commission Breakdown: Nhóm 1 (Dịch vụ: 15% phí sàn, hoặc 10% nếu khách đặt lại) vs Nhóm 2 (Hoàn trả: 100% thợ)
   const commissionBreakdown = calculateFullBookingCommission({
     packageSlug: booking.package_slug,
     packageAmountVnd: booking.package_price,
     photographerCompletedCount: completedCount,
+    isReturningCustomer: Boolean(booking.is_rebook),
+    isTopRated: Boolean(booking.is_top_rated),
     addons: (booking.selected_addons || []).map((a) => ({
       name: a.name,
       amountVnd: a.price,
     })),
+    travelFee: booking.travel_fee || 0,
+    studioFee: booking.studio_fee || 0,
   })
 
   const timelineSteps = [
+    { key: 'PAID_ESCROW', label: 'Cọc & Escrow', desc: 'Khách đã thanh toán' },
     { key: 'CONFIRMED', label: 'Đã nhận lịch', desc: 'Sẵn sàng khởi hành' },
     { key: 'PHOTOGRAPHER_ARRIVED', label: 'Đã đến điểm hẹn', desc: 'Có mặt tại vị trí' },
     { key: 'SHOOTING', label: 'Đang chụp', desc: 'Bấm máy cùng khách' },
     { key: 'EDITING', label: 'Đang hậu kỳ', desc: 'Lọc ảnh & chỉnh màu' },
-    { key: 'PHOTOS_DELIVERED', label: 'Đã bàn giao ảnh', desc: 'Gửi link đám mây' },
+    { key: 'DELIVERED', label: 'Đã bàn giao ảnh', desc: 'Đếm ngược 48h Escrow' },
     { key: 'COMPLETED', label: 'Hoàn tất', desc: 'Giải ngân nhuận bút' },
   ]
 
@@ -245,20 +251,28 @@ export default function PhotographerBookingDetailPage() {
                 size="sm"
                 onClick={() =>
                   advanceStatus(
-                    'PHOTOS_DELIVERED',
-                    'Đã giao link ảnh đám mây thành công! Cửa sổ 48h kiểm duyệt bắt đầu tính.'
+                    'DELIVERED',
+                    'Đã xác nhận bàn giao ảnh! Đồng hồ 48h Escrow bắt đầu đếm ngược.'
                   )
                 }
                 className="bg-brand text-white hover:opacity-90 rounded-xl text-xs font-bold h-9 shadow-md"
               >
                 <UploadCloud className="h-3.5 w-3.5 mr-1" />
-                Bàn giao bộ ảnh (Bật đếm ngược 48h)
+                Xác nhận bàn giao ảnh (Khởi động 48h Escrow)
               </Button>
             )}
 
-            {booking.status === 'PHOTOS_DELIVERED' && (
-              <div className="text-xs text-violet-700 font-bold bg-violet-50 px-3 py-1.5 rounded-xl border border-violet-200">
-                ⏳ Đang chờ khách duyệt trong 48h hoặc tự động giải ngân sau 48h
+            {(booking.status === 'DELIVERED' || booking.status === 'PHOTOS_DELIVERED') && (
+              <div className="text-xs text-violet-700 font-bold bg-violet-50 px-3 py-1.5 rounded-xl border border-violet-200 flex flex-col gap-0.5">
+                <span>⏳ Đang chờ khách duyệt trong cửa sổ 48h Escrow</span>
+                {booking.delivered_at && (
+                  <span className="text-[10px] text-violet-500 font-normal">
+                    Bàn giao: {new Date(booking.delivered_at).toLocaleString('vi-VN')} •{' '}
+                    {getEscrowRemainingMs(booking) > 0
+                      ? `Còn ${formatCountdownShort(getEscrowRemainingMs(booking))}`
+                      : 'Đã hết hạn — đang xử lý giải ngân tự động'}
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -315,63 +329,98 @@ export default function PhotographerBookingDetailPage() {
           </Card>
         </div>
 
-        {/* Right: Authoritative Earnings Breakdown with New Addon Commissions */}
+        {/* Right: Authoritative Earnings Breakdown with Marketplace 2-Group Model */}
         <div className="space-y-6">
           <Card className="rounded-3xl border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-1.5">
               <DollarSign className="w-4 h-4 text-emerald-600" />
-              Sổ Cái Thù Lao & Hoa Hồng
+              Sổ Cái Thù Lao & Phân Bổ Doanh Thu
             </h3>
 
-            <div className="space-y-2.5 text-xs text-slate-600">
-              <div className="flex justify-between">
-                <span>Gói chụp ({booking.package_name}):</span>
-                <span className="font-bold text-slate-900">{formatVND(booking.package_price)}</span>
-              </div>
-              <div className="flex justify-between text-[11px] text-slate-400 pl-2">
-                <span>• Phí sàn chụp ({commissionBreakdown.packageRatePercent}%):</span>
-                <span>-{formatVND(commissionBreakdown.packageCommissionVnd)}</span>
-              </div>
-
-              {/* Addons breakdown */}
-              {commissionBreakdown.addonCommissions.length > 0 && (
-                <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                  <div className="font-bold text-slate-700">Dịch vụ phụ trợ / Đối tác:</div>
-                  {commissionBreakdown.addonCommissions.map((ad, i) => (
-                    <div key={i} className="text-[11px] pl-2 space-y-0.5">
-                      <div className="flex justify-between text-slate-800">
-                        <span>• {ad.name}:</span>
-                        <span>+{formatVND(ad.amountVnd)}</span>
-                      </div>
-                      <div className="flex justify-between text-emerald-600 text-[10px]">
-                        <span>• Phí sàn Add-on (0% - Thợ nhận 100%):</span>
-                        <span>0₫</span>
-                      </div>
+            <div className="space-y-3 text-xs text-slate-600">
+              {/* NHÓM 1: DOANH THU DỊCH VỤ */}
+              <div className="p-3 rounded-2xl bg-violet-50/50 border border-violet-100 space-y-2">
+                <div className="flex justify-between items-center font-bold text-violet-950 text-xs">
+                  <span>Nhóm 1: Doanh Thu Dịch Vụ</span>
+                  <span>{formatVND(commissionBreakdown.grossServiceValue)}</span>
+                </div>
+                <div className="space-y-1 text-[11px] text-slate-600 pl-1">
+                  <div className="flex justify-between">
+                    <span>• Giá gói ({booking.package_name}):</span>
+                    <span>{formatVND(booking.package_price)}</span>
+                  </div>
+                  {commissionBreakdown.addonCommissions.filter(a => a.category === 'service').map((ad, i) => (
+                    <div key={i} className="flex justify-between">
+                      <span>• {ad.name}:</span>
+                      <span>+{formatVND(ad.amountVnd)}</span>
                     </div>
                   ))}
+                  <div className="flex justify-between text-rose-600 font-semibold pt-1 border-t border-violet-100">
+                    <span>• Phí sàn FLASHY ({commissionBreakdown.packageRatePercent}%):</span>
+                    <span>-{formatVND(commissionBreakdown.totalPlatformCommissionVnd)}</span>
+                  </div>
+                  {booking.is_rebook && (
+                    <div className="p-2 rounded-xl bg-teal-50 border border-teal-200 text-[10px] text-teal-800 font-semibold">
+                      🎉 {commissionBreakdown.rebookDiscountNote || 'Đơn hàng từ khách cũ - Bạn được giảm phí sàn từ 15% xuống 10%!'}
+                    </div>
+                  )}
+                  <div className="flex justify-between text-violet-900 font-bold pt-0.5">
+                    <span>= Tiền công chụp thực nhận ({100 - commissionBreakdown.packageRatePercent}%):</span>
+                    <span>{formatVND(commissionBreakdown.photographerServicePayout)}</span>
+                  </div>
                 </div>
-              )}
-
-              <div className="pt-2 border-t border-slate-100 flex justify-between font-bold text-slate-900 text-sm">
-                <span>Tổng đơn đặt:</span>
-                <span>{formatVND(booking.total_amount)}</span>
               </div>
 
-              <div className="flex justify-between text-rose-600 font-semibold text-xs">
-                <span>Tổng phí hoa hồng sàn:</span>
-                <span>-{formatVND(commissionBreakdown.totalPlatformCommissionVnd)}</span>
+              {/* NHÓM 2: PHỤ PHÍ HOÀN TRẢ (100% CHO THỢ) */}
+              <div className="p-3 rounded-2xl bg-emerald-50/50 border border-emerald-100 space-y-2">
+                <div className="flex justify-between items-center font-bold text-emerald-950 text-xs">
+                  <span>Nhóm 2: Phụ Phí Hoàn Trả (100% Thợ)</span>
+                  <span className="text-emerald-700">+{formatVND(commissionBreakdown.photographerReimbursementPayout)}</span>
+                </div>
+                <div className="space-y-1 text-[11px] text-slate-600 pl-1">
+                  <div className="flex justify-between">
+                    <span>• Bù di chuyển (&gt;8km: {booking.extra_distance_km || 0}km × 15k):</span>
+                    <span className="font-semibold text-slate-800">
+                      {booking.travel_fee ? `+${formatVND(booking.travel_fee)}` : '0₫ (≤8km)'}
+                    </span>
+                  </div>
+                  {booking.studio_fee ? (
+                    <div className="flex justify-between">
+                      <span>• Hỗ trợ thuê Studio ({booking.studio_hours || 1}h):</span>
+                      <span className="font-semibold text-slate-800">+{formatVND(booking.studio_fee)}</span>
+                    </div>
+                  ) : null}
+                  <div className="text-[10px] text-emerald-600 font-medium">
+                    ✓ Sàn thu 0% chiết khấu – Chuyển tròn 100% cho Thợ ảnh
+                  </div>
+                </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 flex justify-between items-center text-emerald-900">
-                <span className="font-bold text-xs">Thực nhận về ví:</span>
-                <span className="font-black text-base text-emerald-700">
+              {/* TỔNG KẾT ĐƠN & THỰC NHẬN */}
+              <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                <div className="flex justify-between font-bold text-slate-900 text-sm">
+                  <span>Tổng khách thanh toán:</span>
+                  <span>{formatVND(booking.total_amount)}</span>
+                </div>
+                <div className="flex justify-between text-rose-600 text-xs">
+                  <span>Tổng phí sàn thu:</span>
+                  <span>-{formatVND(commissionBreakdown.totalPlatformCommissionVnd)}</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 flex justify-between items-center text-emerald-950">
+                <div>
+                  <span className="font-bold text-xs block">Thực nhận về ví (Net Payout):</span>
+                  <span className="text-[10px] text-emerald-600 font-medium">Tiền công chụp + 100% Bù di chuyển</span>
+                </div>
+                <span className="font-black text-lg text-emerald-700">
                   {formatVND(commissionBreakdown.totalNetPayoutVnd)}
                 </span>
               </div>
             </div>
 
             <div className="pt-3 mt-3 border-t border-slate-100 text-[10px] text-slate-400">
-              🛡️ Tiền cọc 30% ({formatVND(booking.deposit_amount)}) hiện đang được khóa an toàn tại Quỹ Ký Quỹ Escrow FLASHY.
+              🛡️ Tiền cọc 30% ({formatVND(booking.deposit_amount)}) hiện đang được khóa an toàn tại Quỹ Ký Quỹ Escrow FLASHY và sẽ giải ngân tự động sau 48h kiểm duyệt ảnh.
             </div>
           </Card>
         </div>

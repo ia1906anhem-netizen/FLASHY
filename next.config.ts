@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import path from 'path'
 
 // Security headers áp dụng cho tất cả các route
 const securityHeaders = [
@@ -30,6 +31,7 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: path.join(__dirname),
   eslint: {
     ignoreDuringBuilds: true,
   },

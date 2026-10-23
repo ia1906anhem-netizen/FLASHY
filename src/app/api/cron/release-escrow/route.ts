@@ -20,12 +20,12 @@ export async function GET(request: NextRequest) {
     try {
       const supabase = await createAdminClient()
 
-      // Query bookings eligible for release:
-      // Delivered >= 48h ago, in REVIEW_WINDOW, no active dispute
+          // Query bookings eligible for release:
+      // DELIVERED (or legacy PHOTOS_DELIVERED) >= 48h ago, no active dispute
       const { data: eligibleRecords } = await supabase
         .from('escrow_records')
-        .select('id, booking_id, gross_amount, net_amount, status')
-        .eq('status', 'REVIEW_WINDOW')
+        .select('id, booking_id, gross_amount, net_amount, package_amount, addons_amount, status')
+        .in('status', ['DELIVERED', 'REVIEW_WINDOW'])
         .lte('delivery_confirmed_at', fortyEightHoursAgo)
 
       if (eligibleRecords && eligibleRecords.length > 0) {
@@ -37,19 +37,30 @@ export async function GET(request: NextRequest) {
             .eq('booking_id', record.booking_id)
             .in('status', ['OPEN', 'UNDER_REVIEW', 'WAITING_FOR_EVIDENCE'])
 
-          if (!activeDisputes || activeDisputes.length === 0) {
-            // Safe to release
+                    if (!activeDisputes || activeDisputes.length === 0) {
+            // Safe to release — compute CP3 payout split
+            // 15% platform commission from package, 100% of addons to photographer
+            const packageAmt = record.package_amount || record.gross_amount
+            const addonsAmt = record.addons_amount || 0
+            const platformCommission = Math.round((packageAmt * 15) / 100)
+            const photographerPayout = packageAmt - platformCommission + addonsAmt
+
             await supabase
               .from('escrow_records')
               .update({
                 status: 'RELEASED',
                 released_at: now.toISOString(),
+                platform_commission: platformCommission,
+                photographer_payout: photographerPayout,
               })
               .eq('id', record.id)
 
             await supabase
               .from('bookings')
-              .update({ status: 'COMPLETED' })
+              .update({
+                status: 'COMPLETED',
+                completed_at: now.toISOString(),
+              })
               .eq('id', record.booking_id)
 
             releasedCount++

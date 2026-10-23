@@ -43,7 +43,7 @@ export default function PackagesPage() {
         {/* Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
           <Badge variant="verified" className="mb-3 px-3 py-1 text-xs">
-            Bảng giá minh bạch 100% theo chuẩn CP3
+            Bảng giá minh bạch 100% • Không phí ẩn
           </Badge>
           <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight mb-4">
             Các Gói Dịch Vụ Chụp Ảnh FLASHY

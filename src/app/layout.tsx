@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Plus_Jakarta_Sans, Be_Vietnam_Pro } from 'next/font/google'
 import './globals.css'
+import 'leaflet/dist/leaflet.css'
 import { Toaster } from 'sonner'
 import { Providers } from '@/components/providers'
 

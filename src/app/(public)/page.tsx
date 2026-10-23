@@ -23,6 +23,15 @@ import {
   Play,
   Navigation,
   Loader2,
+  Coins,
+  Ticket,
+  Maximize2,
+  X,
+  Coffee,
+  Plane,
+  Calendar,
+  User,
+  Palette,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -40,6 +49,7 @@ import {
   getApprovedProviders,
   getStoredBookings,
   calculateDynamicStats,
+  seedMockPhotographers,
   type ApprovedProvider,
   type DynamicStats,
 } from '@/lib/data/booking-store'
@@ -92,6 +102,170 @@ const PACKAGES = [
   },
 ]
 
+// ─── MOCK DATA: 4 Featured Photographers (luôn hiển thị kể cả khi store rỗng) ───
+const MOCK_HOMEPAGE_PHOTOGRAPHERS = [
+  {
+    id: 'mock-hcm-001',
+    name: 'Minh Khoa (MK Visual)',
+    slug: 'minh-khoa-mk-visual',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
+    cover: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=800&h=400&fit=crop',
+    location: 'Quận 1, TP. Hồ Chí Minh',
+    specialty: 'Lifestyle · Street · Cafe Portrait',
+    rating: 4.97, reviews: 128, starting_price: 800000,
+    is_verified: true, is_sponsored: true, badge: '🏆 Top Rated',
+    portfolio: [
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=300&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=300&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=300&h=300&fit=crop',
+    ],
+  },
+  {
+    id: 'mock-hn-001',
+    name: 'Phương Nghi (Nghi Phim)',
+    slug: 'phuong-nghi-nghi-phim',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&crop=face',
+    cover: 'https://images.unsplash.com/photo-1555921015-5532091f6026?w=800&h=400&fit=crop',
+    location: 'Hoàn Kiếm, Hà Nội',
+    specialty: 'Film Portrait · Couple · Analog',
+    rating: 5.0, reviews: 47, starting_price: 800000,
+    is_verified: true, is_sponsored: true, badge: '🎞️ Film Style',
+    portfolio: [
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?w=300&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1521119989659-a83eee488004?w=300&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1507081323647-4d250478b919?w=300&h=300&fit=crop',
+    ],
+  },
+  {
+    id: 'mock-hcm-002',
+    name: 'Linh Đan (Dandelion Studio)',
+    slug: 'linh-dan-dandelion-studio',
+    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face',
+    cover: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=400&fit=crop',
+    location: 'Quận 3, TP. Hồ Chí Minh',
+    specialty: 'Áo dài · Tết · Couple · Concept',
+    rating: 4.92, reviews: 84, starting_price: 1500000,
+    is_verified: true, is_sponsored: false, badge: '✨ KYC Verified',
+    portfolio: [
+      'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?w=300&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=300&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1499952127939-9bbf5af6c51c?w=300&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1526510747491-58f928ec870f?w=300&h=300&fit=crop',
+    ],
+  },
+  {
+    id: 'mock-hn-003',
+    name: 'Bảo Châu (Studio Mây)',
+    slug: 'bao-chau-studio-may',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
+    cover: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=800&h=400&fit=crop',
+    location: 'Đống Đa, Hà Nội',
+    specialty: 'Áo dài · Concept · Kỷ yếu',
+    rating: 4.95, reviews: 76, starting_price: 3200000,
+    is_verified: true, is_sponsored: false, badge: '🌸 Signature',
+    portfolio: [
+      'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=300&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?w=300&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=300&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=300&h=300&fit=crop',
+    ],
+  },
+]
+
+// ─── MOCK DATA: Category Image Banner Cards ───────────────────────────────────
+const CATEGORY_CARDS = [
+  {
+    value: 'lifestyle',
+    label: 'Lifestyle',
+    desc: 'Đời thường · Cafe · Dạo phố',
+    img: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=280&fit=crop',
+    gradient: 'from-violet-600/80 to-purple-900/60',
+  },
+  {
+    value: 'tet_ao_dai',
+    label: 'Áo dài / Tết',
+    desc: 'Truyền thống · Lễ hội · Xuân',
+    img: 'https://images.unsplash.com/photo-1526510747491-58f928ec870f?w=400&h=280&fit=crop',
+    gradient: 'from-rose-600/80 to-pink-900/60',
+  },
+  {
+    value: 'couple',
+    label: 'Chụp đôi',
+    desc: 'Couple · Lãng mạn · Kỷ niệm',
+    img: 'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?w=400&h=280&fit=crop',
+    gradient: 'from-pink-600/80 to-red-900/60',
+  },
+  {
+    value: 'street',
+    label: 'Street Style',
+    desc: 'Streetwear · Đô thị · Urban',
+    img: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=280&fit=crop',
+    gradient: 'from-slate-700/80 to-slate-900/70',
+  },
+  {
+    value: 'graduation',
+    label: 'Kỷ yếu',
+    desc: 'Tốt nghiệp · Ký ức · Lớp học',
+    img: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=400&h=280&fit=crop',
+    gradient: 'from-emerald-600/80 to-teal-900/60',
+  },
+  {
+    value: 'outdoor',
+    label: 'Dã ngoại',
+    desc: 'Outdoor · Thiên nhiên · Adventure',
+    img: 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=280&fit=crop',
+    gradient: 'from-amber-600/80 to-orange-900/60',
+  },
+]
+
+// ─── SUB-CATEGORY PILL CHIPS: Lucide icons + modern styling ──────────────────
+const SUB_CATEGORY_CHIPS = [
+  { value: 'quick_date', label: 'Quick Date', icon: Coffee },
+  { value: 'travel', label: 'Du lịch', icon: Plane },
+  { value: 'events', label: 'Sự kiện', icon: Calendar },
+  { value: 'portrait', label: 'Chân dung', icon: User },
+  { value: 'concept', label: 'Concept Photography', icon: Palette },
+]
+
+// ─── MOCK DATA: 3 Reviews kèm ảnh sản phẩm hoàn thiện ───────────────────────────────────
+const MOCK_REVIEWS = [
+  {
+    id: 'r-001',
+    name: 'Ngọc Anh',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&h=100&fit=crop&crop=face',
+    rating: 5,
+    date: '18/10/2026',
+    content: 'Anh Minh Khoa chụp rất tự nhiên và chuyên nghiệp. Mình không phải người lên đồ giỏi nhưng anh hướng dẫn tạo dáng siêu chill, ảnh ra đẹp hơn mình tưởng 100%!',
+    photographer: 'Minh Khoa (MK Visual)',
+    package: 'FLASHY CASUAL',
+    productPhoto: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&h=600&fit=crop',
+  },
+  {
+    id: 'r-002',
+    name: 'Minh Phúc',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face',
+    rating: 5,
+    date: '15/10/2026',
+    content: 'Đặt gói Áo dài cho bạn gái dịp Tết, chị Linh Đan chụp lung linh lắm. Màu phim rất đặc trưng, ảnh lên mạng được khen nhiều. Nhất định quay lại!',
+    photographer: 'Linh Đan (Dandelion Studio)',
+    package: 'FLASHY PRO',
+    productPhoto: 'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=600&fit=crop',
+  },
+  {
+    id: 'r-003',
+    name: 'Thu Hương',
+    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face',
+    rating: 5,
+    date: '10/10/2026',
+    content: 'Escrow FLASHY an tâm lắm, tiền giữ đến lúc nhận ảnh xong mới release. Chị Phương Nghi chụp ảnh film rất có hồn, nhận ảnh xong mình ôm điện thoại coi cả tiếng không chán!',
+    photographer: 'Phương Nghi (Nghi Phim)',
+    package: 'FLASHY SIGNATURE',
+    productPhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&h=600&fit=crop',
+  },
+]
+
 const HOW_IT_WORKS = [
   {
     step: '01',
@@ -140,13 +314,19 @@ export default function HomePage() {
     content: string
     photographer: string
     package: string
+    productPhoto?: string
   }>>([])
+  const [previewPhoto, setPreviewPhoto] = useState<{ src: string; caption: string; photographer: string } | null>(null)
+  const [activeSubCategory, setActiveSubCategory] = useState<string | null>(null)
   const [userCoins, setUserCoins] = useState<number>(0)
   const [isClientLoaded, setIsClientLoaded] = useState(false)
   const [userCoords, setUserCoords] = useState<Coordinates | null>(null)
   const [isLocatingNearby, setIsLocatingNearby] = useState(false)
 
   useEffect(() => {
+    // Auto-seed mock photographers vào localStorage
+    seedMockPhotographers()
+
     const refreshData = () => {
       setDynamicStats(calculateDynamicStats())
       setFeaturedPhotographers(getApprovedProviders())
@@ -156,17 +336,23 @@ export default function HomePage() {
       const reviewed = bookings.filter(
         (b) => b.review && typeof b.review.rating === 'number' && b.review.rating > 0
       )
-      const mapped = reviewed.map((b) => ({
+      const sampleDeliverablePhotos = [
+        'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&h=600&fit=crop',
+        'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=600&fit=crop',
+        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&h=600&fit=crop',
+      ]
+      const mapped = reviewed.map((b, idx) => ({
         id: b.id,
         name: b.customer_name || 'Khách hàng',
-        avatar: b.photographer_avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=60&h=60&fit=crop',
+        avatar: (b as any).customer_avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&h=80&fit=crop',
         rating: b.review?.rating || 5,
         date: b.review?.created_at
           ? new Date(b.review.created_at).toLocaleDateString('vi-VN')
           : 'Gần đây',
-        content: b.review?.comment || 'Dịch vụ chụp ảnh chuyên nghiệp và chu đáo.',
+        content: b.review?.comment || 'Dịch vụ chụp ảnh chuyên nghiệp và chu đáo. Ảnh nhận về chất lượng rất cao và vượt mong đợi!',
         photographer: b.photographer_name,
         package: b.package_name,
+        productPhoto: (b as any).deliverables?.[0] || sampleDeliverablePhotos[idx % sampleDeliverablePhotos.length],
       }))
       setRealReviews(mapped)
 
@@ -499,28 +685,73 @@ export default function HomePage() {
             </motion.div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {PHOTOGRAPHY_CATEGORIES.map((cat, i) => (
+          {/* Image Banner Category Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {CATEGORY_CARDS.map((cat, i) => (
               <motion.div
                 key={cat.value}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.05 }}
+                transition={{ delay: i * 0.07 }}
               >
                 <Link
                   href={`/photographers?category=${cat.value}`}
-                  className="flex flex-col items-center gap-2 p-4 rounded-2xl border border-border/50 hover:border-primary/30 hover:bg-primary/5 hover:shadow-premium transition-all duration-300 group text-center"
+                  className="group block relative rounded-2xl overflow-hidden aspect-[3/4] cursor-pointer shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                 >
-                  <span className="text-2xl group-hover:scale-110 transition-transform duration-200">
-                    {cat.icon}
-                  </span>
-                  <span className="text-xs font-medium text-foreground/80 group-hover:text-primary">
-                    {cat.label}
-                  </span>
+                  {/* Background Image */}
+                  <Image
+                    src={cat.img}
+                    alt={cat.label}
+                    fill
+                    className="object-cover group-hover:scale-110 transition-transform duration-500"
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 16vw"
+                  />
+                  {/* Gradient Overlay */}
+                  <div className={`absolute inset-0 bg-gradient-to-t ${cat.gradient} group-hover:opacity-90 transition-opacity duration-300`} />
+                  {/* Text */}
+                  <div className="absolute inset-0 flex flex-col justify-end p-3">
+                    <span className="text-white font-bold text-sm leading-tight drop-shadow-md">{cat.label}</span>
+                    <span className="text-white/70 text-[10px] mt-0.5 leading-tight">{cat.desc}</span>
+                  </div>
+                  {/* Hover arrow */}
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="w-6 h-6 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                      <ChevronRight className="w-3.5 h-3.5 text-white" />
+                    </div>
+                  </div>
                 </Link>
               </motion.div>
             ))}
+          </div>
+
+          {/* Quick Filter Chips: Lucide icons, white pill cards, gradient active & mobile scroll */}
+          <div className="mt-8">
+            <div className="flex items-center justify-start sm:justify-center gap-2.5 overflow-x-auto no-scrollbar scrollbar-hide py-2 px-1 -mx-4 sm:mx-0 px-4 sm:px-0 scroll-smooth">
+              {SUB_CATEGORY_CHIPS.map((cat) => {
+                const Icon = cat.icon
+                const isActive = activeSubCategory === cat.value
+                return (
+                  <Link
+                    key={cat.value}
+                    href={`/photographers?category=${cat.value}`}
+                    onClick={() => {
+                      setActiveSubCategory(isActive ? null : cat.value)
+                    }}
+                    className={`group flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-all duration-200 shrink-0 cursor-pointer ${
+                      isActive
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-500 text-white border-transparent shadow-md shadow-purple-500/25 ring-2 ring-purple-400/40'
+                        : 'bg-white dark:bg-card text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-border/80 shadow-sm hover:border-violet-300 dark:hover:border-violet-500 hover:text-violet-700 dark:hover:text-violet-300 hover:shadow-md hover:-translate-y-0.5'
+                    }`}
+                  >
+                    <Icon className={`w-4 h-4 transition-transform duration-200 group-hover:scale-110 ${
+                      isActive ? 'text-white' : 'text-violet-600 dark:text-violet-400'
+                    }`} />
+                    <span>{cat.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
           </div>
         </div>
       </section>
@@ -606,120 +837,143 @@ export default function HomePage() {
             </Button>
           </div>
 
-          {featuredPhotographers.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-3xl border border-dashed border-border/80 bg-card/60 backdrop-blur-sm p-10 md:p-14 text-center max-w-2xl mx-auto shadow-sm"
-            >
-              <div className="w-16 h-16 rounded-2xl bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 flex items-center justify-center mx-auto mb-5 shadow-sm">
-                <ShieldCheck className="w-8 h-8" />
-              </div>
-              <h3 className="text-xl font-bold text-foreground mb-2">
-                Chưa có nhiếp ảnh gia nào được duyệt KYC
-              </h3>
-              <p className="text-sm text-muted-foreground leading-relaxed mb-6 max-w-md mx-auto">
-                FLASHY áp dụng chính sách kiểm duyệt danh tính và portfolio nghiêm ngặt để đảm bảo an toàn tuyệt đối cho khách hàng. Hệ thống sẽ tự động hiển thị danh sách ngay khi hồ sơ nhiếp ảnh gia được quản trị viên phê duyệt.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
-                <Button size="lg" className="bg-brand text-white shadow-glow-purple font-bold w-full sm:w-auto" asChild>
-                  <Link href="/become-photographer">
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Trở thành thợ chụp & Nộp KYC
-                  </Link>
-                </Button>
-                <Button size="lg" variant="outline" className="w-full sm:w-auto" asChild>
-                  <Link href="/photographers">Xem toàn bộ danh mục thợ ảnh</Link>
-                </Button>
-              </div>
-            </motion.div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {featuredPhotographers.map((photographer, i) => (
-                <motion.div
-                  key={photographer.id}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.1 }}
-                >
-                  <Link href={`/photographers/${photographer.slug}`}>
-                    <div className="photographer-card group">
-                      {/* Cover image */}
-                      <div className="relative h-44 overflow-hidden">
-                        <Image
-                          src={photographer.cover}
-                          alt={`Portfolio của ${photographer.name}`}
-                          fill
-                          className="object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                        <div className="absolute inset-0 photo-overlay" />
+          {/* Merge: hiển thị mock + real providers (mock trước nếu store chưa có data) */}
+          {(() => {
+            const storePhotographers = featuredPhotographers.slice(0, 4)
+            // Ưu tiên storePhotographers nếu có, fallback sang mock
+            const displayPhotographers = storePhotographers.length > 0
+              ? storePhotographers
+              : MOCK_HOMEPAGE_PHOTOGRAPHERS
 
-                        {/* Labels */}
-                        <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
-                          {photographer.is_sponsored && (
-                            <span className="px-2 py-0.5 rounded-full bg-amber-500/90 text-white text-[10px] font-semibold">
-                              Tài trợ
-                            </span>
-                          )}
-                          {photographer.badge && (
-                            <span className="px-2 py-0.5 rounded-full bg-black/50 text-white text-[10px] font-semibold">
-                              {photographer.badge}
-                            </span>
-                          )}
-                        </div>
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {displayPhotographers.map((photographer, i) => {
+                  const portfolioPhotos = (photographer as any).portfolio as string[] | undefined
+                  return (
+                    <motion.div
+                      key={photographer.id}
+                      initial={{ opacity: 0, y: 30 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: i * 0.1 }}
+                    >
+                      <Link href={`/photographers/${photographer.slug}`}>
+                        <div className="photographer-card group overflow-hidden rounded-2xl border border-border/60 hover:border-violet-300 hover:shadow-2xl transition-all duration-300 bg-card">
 
-                        {/* Rating */}
-                        <div className="absolute bottom-2 right-2 flex items-center gap-1 glass px-2 py-1 rounded-full">
-                          <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                          <span className="text-white text-xs font-bold">
-                            {photographer.reviews > 0 ? formatRating(photographer.rating) : 'Mới'}
-                          </span>
-                          <span className="text-white/60 text-xs">({photographer.reviews})</span>
-                        </div>
-                      </div>
-
-                      {/* Info */}
-                      <div className="p-4">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="flex items-center gap-2">
-                            <Avatar className="w-9 h-9 ring-2 ring-white shadow-sm">
-                              <AvatarImage src={photographer.avatar} />
-                              <AvatarFallback className="text-xs">{photographer.name[0]}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <div className="flex items-center gap-1">
-                                <span className="font-semibold text-sm">{photographer.name}</span>
-                                {photographer.is_verified && (
-                                  <Shield className="w-3.5 h-3.5 text-violet-500 fill-violet-100" />
+                          {/* Portfolio 2×2 Grid */}
+                          {portfolioPhotos && portfolioPhotos.length >= 4 ? (
+                            <div className="relative h-44 overflow-hidden">
+                              <div className="grid grid-cols-2 grid-rows-2 h-full gap-0.5">
+                                {portfolioPhotos.slice(0, 4).map((url: string, idx: number) => (
+                                  <div key={idx} className="relative overflow-hidden">
+                                    <Image
+                                      src={url}
+                                      alt={`Portfolio ${idx + 1}`}
+                                      fill
+                                      className="object-cover group-hover:scale-110 transition-transform duration-500"
+                                      sizes="150px"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/10 pointer-events-none" />
+                              {/* Hover: xem portfolio */}
+                              <div className="absolute inset-0 bg-violet-900/65 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
+                                <span className="text-white text-xs font-bold px-3 py-1.5 rounded-full border border-white/50 backdrop-blur-sm">
+                                  👁 Xem {portfolioPhotos.length} ảnh portfolio
+                                </span>
+                              </div>
+                              {/* Rating chip */}
+                              <div className="absolute bottom-2 right-2 flex items-center gap-1 glass px-2 py-1 rounded-full">
+                                <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                                <span className="text-white text-xs font-bold">{formatRating(photographer.rating)}</span>
+                                <span className="text-white/60 text-xs">({photographer.reviews})</span>
+                              </div>
+                              {/* Badges */}
+                              <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
+                                {(photographer as any).is_sponsored && (
+                                  <span className="px-2 py-0.5 rounded-full bg-amber-500/90 text-white text-[10px] font-semibold">Nổi bật</span>
+                                )}
+                                {(photographer as any).badge && (
+                                  <span className="px-2 py-0.5 rounded-full bg-black/60 text-white text-[10px] font-semibold">{(photographer as any).badge}</span>
                                 )}
                               </div>
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <MapPin className="w-3 h-3" />
-                                {photographer.location}
+                            </div>
+                          ) : (
+                            /* Fallback: single cover image */
+                            <div className="relative h-44 overflow-hidden">
+                              <Image
+                                src={(photographer as any).cover || ''}
+                                alt={`Portfolio của ${photographer.name}`}
+                                fill
+                                className="object-cover group-hover:scale-105 transition-transform duration-500"
+                              />
+                              <div className="absolute inset-0 photo-overlay" />
+                              <div className="absolute bottom-2 right-2 flex items-center gap-1 glass px-2 py-1 rounded-full">
+                                <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                                <span className="text-white text-xs font-bold">
+                                  {photographer.reviews > 0 ? formatRating(photographer.rating) : 'Mới'}
+                                </span>
+                                <span className="text-white/60 text-xs">({photographer.reviews})</span>
                               </div>
+                              <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
+                                {(photographer as any).is_sponsored && (
+                                  <span className="px-2 py-0.5 rounded-full bg-amber-500/90 text-white text-[10px] font-semibold">Tài trợ</span>
+                                )}
+                                {(photographer as any).badge && (
+                                  <span className="px-2 py-0.5 rounded-full bg-black/50 text-white text-[10px] font-semibold">{(photographer as any).badge}</span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Card Info */}
+                          <div className="p-4">
+                            <div className="flex items-start justify-between gap-2 mb-2">
+                              <div className="flex items-center gap-2">
+                                <Avatar className="w-9 h-9 ring-2 ring-white shadow-sm flex-shrink-0">
+                                  <AvatarImage src={(photographer as any).avatar} />
+                                  <AvatarFallback className="text-xs">{photographer.name[0]}</AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-1">
+                                    <span className="font-semibold text-sm truncate">{photographer.name}</span>
+                                    {(photographer as any).is_verified && (
+                                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <MapPin className="w-3 h-3 flex-shrink-0" />
+                                    <span className="truncate">{(photographer as any).location}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-1 mb-3">
+                              {((photographer as any).specialty as string).split(' · ').slice(0, 2).map((s: string) => (
+                                <span key={s} className="text-[10px] font-medium bg-violet-50 text-violet-700 border border-violet-100 px-2 py-0.5 rounded-md">{s}</span>
+                              ))}
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="text-xs text-muted-foreground">Từ</span>
+                                <span className="font-bold text-primary ml-1">{formatVND((photographer as any).starting_price)}</span>
+                              </div>
+                              <Button size="sm" className="h-7 px-3 text-xs bg-primary">
+                                Đặt ngay
+                              </Button>
                             </div>
                           </div>
                         </div>
-
-                        <p className="text-xs text-muted-foreground mb-3">{photographer.specialty}</p>
-
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <span className="text-xs text-muted-foreground">Từ</span>
-                            <span className="font-bold text-primary ml-1">{formatVND(photographer.starting_price)}</span>
-                          </div>
-                          <Button size="sm" className="h-7 px-3 text-xs bg-primary">
-                            Đặt ngay
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                </motion.div>
-              ))}
-            </div>
-          )}
+                      </Link>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            )
+          })()}
 
           <div className="text-center mt-6 md:hidden">
             <Button variant="outline" asChild>
@@ -782,85 +1036,138 @@ export default function HomePage() {
       {/* ============ LOYALTY SECTION ============ */}
       <section className="py-20 bg-background overflow-hidden">
         <div className="container mx-auto px-4 max-w-6xl">
-          <div className="relative rounded-3xl bg-gradient-to-br from-violet-600 via-purple-700 to-pink-600 overflow-hidden p-10 md:p-16">
-            {/* Background pattern */}
-            <div className="absolute inset-0 opacity-10">
-              <div className="absolute top-4 right-4 w-64 h-64 rounded-full bg-white/20" />
-              <div className="absolute bottom-4 left-4 w-48 h-48 rounded-full bg-white/10" />
+          <div className="relative rounded-3xl bg-gradient-to-br from-violet-600 via-purple-700 to-pink-600 overflow-hidden p-8 sm:p-10 md:p-14 shadow-2xl">
+            {/* Background pattern & ambient glows */}
+            <div className="absolute inset-0 pointer-events-none opacity-25">
+              <div className="absolute -top-16 -right-16 w-80 h-80 rounded-full bg-pink-400/40 blur-3xl" />
+              <div className="absolute -bottom-16 -left-16 w-80 h-80 rounded-full bg-violet-400/40 blur-3xl" />
+              <div className="absolute top-1/2 right-1/4 w-56 h-56 rounded-full bg-amber-300/30 blur-2xl" />
+              <div className="absolute top-8 right-12 w-28 h-28 rounded-full border border-white/10" />
             </div>
 
             <div className="relative z-10 grid md:grid-cols-2 gap-10 items-center">
               <div>
-                <Badge className="bg-white/20 text-white border-white/30 mb-4">
-                  <Award className="w-3 h-3 mr-1" />
-                  Flashy Coins
+                <Badge className="bg-white/20 text-white border-white/30 mb-4 backdrop-blur-xs">
+                  <Award className="w-3.5 h-3.5 mr-1 text-amber-300" />
+                  Flashy Coins & Đổi quà
                 </Badge>
-                <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
+                <h2 className="text-3xl md:text-4xl font-black text-white mb-4 leading-tight">
                   Tích điểm mỗi buổi chụp, đổi quà liền tay!
                 </h2>
-                <p className="text-white/80 mb-6 leading-relaxed">
-                  Kiếm Flashy Coins sau mỗi đơn hoàn thành. Đổi điểm lấy voucher giảm giá, cafe miễn phí, và nhiều ưu đãi hấp dẫn.
+                <p className="text-white/80 mb-6 leading-relaxed text-sm md:text-base">
+                  Kiếm Flashy Coins sau mỗi đơn hoàn thành. Đổi điểm lấy voucher giảm giá, cafe miễn phí, và nhiều ưu đãi độc quyền dành cho khách hàng thân thiết.
                 </p>
-                <div className="grid grid-cols-3 gap-4 mb-8">
+                <div className="grid grid-cols-3 gap-3 sm:gap-4 mb-8">
                   {[
                     { tier: '🟤 Rookie', coins: '0–199 xu' },
                     { tier: '💜 Creator', coins: '200–499 xu' },
                     { tier: '⭐ Icon', coins: '500+ xu' },
                   ].map((tier) => (
-                    <div key={tier.tier} className="bg-white/10 rounded-xl p-3 text-center">
-                      <div className="font-semibold text-white text-sm mb-1">{tier.tier}</div>
-                      <div className="text-white/60 text-xs">{tier.coins}</div>
+                    <div key={tier.tier} className="bg-white/10 backdrop-blur-xs rounded-xl p-3 text-center border border-white/10 hover:bg-white/15 transition-colors">
+                      <div className="font-semibold text-white text-xs sm:text-sm mb-1">{tier.tier}</div>
+                      <div className="text-white/70 text-[11px] sm:text-xs">{tier.coins}</div>
                     </div>
                   ))}
                 </div>
-                <Button size="lg" className="bg-white text-violet-700 hover:bg-white/90 font-bold" asChild>
-                  <Link href="/register" className="gap-2">
-                    Tham gia miễn phí <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </Button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button size="lg" className="bg-white text-violet-700 hover:bg-white/90 font-bold shadow-lg" asChild>
+                    <Link href="/register" className="gap-2">
+                      Tham gia tích xu ngay <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </Button>
+                  <div className="text-white/75 text-xs flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" /> Tự động hoàn xu sau mỗi đơn hoàn tất
+                  </div>
+                </div>
               </div>
-              <div className="hidden md:block">
-                <div className="relative">
-                  <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
-                    <div className="flex items-center gap-3 mb-4">
-                      <div className="w-10 h-10 rounded-xl bg-amber-400/30 flex items-center justify-center">
-                        <Award className="w-5 h-5 text-amber-300" />
+
+              {/* Right column: Graphic Mascot/Coins/Voucher + Loyalty Card */}
+              <div className="relative mt-6 md:mt-0">
+                {/* Floating Mascot / Coins / Voucher Illustration graphic in the top-right corner */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.85, y: 15 }}
+                  whileInView={{ opacity: 1, scale: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  animate={{
+                    y: [-4, 6, -4],
+                    rotate: [-1, 1.5, -1],
+                  }}
+                  transition={{
+                    y: { repeat: Infinity, duration: 4.5, ease: "easeInOut" },
+                    rotate: { repeat: Infinity, duration: 6, ease: "easeInOut" },
+                  }}
+                  className="absolute -top-12 -right-3 sm:-top-14 sm:-right-6 md:-top-16 md:-right-8 z-20 pointer-events-none"
+                >
+                  <div className="relative w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 rounded-2xl overflow-hidden border-2 border-white/40 shadow-2xl ring-4 ring-white/10 bg-purple-900/60 backdrop-blur-sm group">
+                    <Image
+                      src="/flashy-coins-mascot.jpg"
+                      alt="FLASHY Mascot - Coins & Voucher"
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-purple-950/50 via-transparent to-transparent" />
+                  </div>
+                  
+                  {/* Floating Voucher Badge attached to Mascot */}
+                  <div className="absolute -bottom-2 -left-4 bg-gradient-to-r from-amber-400 via-orange-400 to-pink-500 text-slate-950 font-black text-[10px] sm:text-xs px-2.5 py-1 rounded-full shadow-xl flex items-center gap-1 border border-white/60 whitespace-nowrap animate-pulse">
+                    <Ticket className="w-3 h-3 text-slate-950" />
+                    VOUCHER 50K
+                  </div>
+                  
+                  {/* Floating Gold Coin Badge */}
+                  <div className="absolute -top-2 -left-2 bg-amber-400 text-slate-900 font-bold text-[9px] px-2 py-0.5 rounded-full shadow-md flex items-center gap-0.5 border border-amber-200">
+                    <Coins className="w-2.5 h-2.5" /> +2% Xu
+                  </div>
+                </motion.div>
+
+                {/* Loyalty Balance Card */}
+                <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 sm:p-7 border border-white/20 shadow-xl relative z-10">
+                  <div className="flex items-center gap-3 mb-4 pr-20 md:pr-24">
+                    <div className="w-11 h-11 rounded-xl bg-amber-400/30 flex items-center justify-center shrink-0 border border-amber-300/40">
+                      <Coins className="w-6 h-6 text-amber-300" />
+                    </div>
+                    <div>
+                      <div className="text-white font-semibold text-sm">Ví xu FLASHY của bạn</div>
+                      <div className="text-amber-200 text-xs font-medium">
+                        {userCoins >= 500 ? 'Hạng: Icon ⭐ (Đặc quyền VIP)' : userCoins >= 200 ? 'Hạng: Creator 💜' : 'Hạng: Tân thủ 🟤'}
                       </div>
-                      <div>
-                        <div className="text-white font-semibold">Số dư xu tích lũy</div>
-                        <div className="text-white/70 text-xs">
-                          {userCoins >= 500 ? 'Hạng: Icon ⭐' : userCoins >= 200 ? 'Hạng: Creator 💜' : 'Hạng: Tân thủ 🟤'}
+                    </div>
+                  </div>
+
+                  <div className="text-4xl font-black text-white mb-2 tracking-tight">
+                    {userCoins} <span className="text-2xl font-bold text-amber-300">xu</span>
+                  </div>
+
+                  <div className="w-full bg-white/15 rounded-full h-2.5 mb-2 overflow-hidden">
+                    <div
+                      className="bg-gradient-to-r from-amber-400 to-yellow-300 rounded-full h-2.5 transition-all shadow-sm"
+                      style={{ width: `${Math.min(100, Math.max(10, (userCoins / 500) * 100))}%` }}
+                    />
+                  </div>
+                  <p className="text-white/80 text-xs">
+                    {userCoins < 200
+                      ? `Tích thêm ${200 - userCoins} xu để nâng cấp Creator 💜`
+                      : userCoins < 500
+                      ? `Tích thêm ${500 - userCoins} xu để đạt cấp Icon ⭐`
+                      : 'Bạn đã đạt cấp độ Icon cao nhất ⭐'}
+                  </p>
+
+                  <div className="mt-5 space-y-2.5">
+                    {[
+                      { label: 'Hoàn xu sau mỗi đơn chụp', desc: '+2% giá trị đơn hoàn tất qua Escrow', value: '+2% Xu' },
+                      { label: 'Đổi xu lấy voucher trừ trực tiếp', desc: '10 xu = 1.000đ trừ thẳng vào đơn', value: '10 xu = 1K' },
+                      { label: 'Voucher ưu đãi tháng sinh nhật', desc: 'Giảm 20% gói chụp dành riêng cho thành viên', value: '-20%' },
+                    ].map((item, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs py-2 border-t border-white/10">
+                        <div>
+                          <div className="text-white font-medium">{item.label}</div>
+                          <div className="text-white/60 text-[11px]">{item.desc}</div>
                         </div>
+                        <span className="text-amber-300 font-bold ml-2 shrink-0 bg-white/10 px-2 py-0.5 rounded border border-white/10">
+                          {item.value}
+                        </span>
                       </div>
-                    </div>
-                    <div className="text-4xl font-black text-white mb-2">{userCoins} xu</div>
-                    <div className="w-full bg-white/10 rounded-full h-2 mb-2">
-                      <div
-                        className="bg-amber-400 rounded-full h-2 transition-all"
-                        style={{ width: `${Math.min(100, Math.max(10, (userCoins / 500) * 100))}%` }}
-                      />
-                    </div>
-                    <p className="text-white/70 text-xs">
-                      {userCoins < 200
-                        ? `Tích thêm ${200 - userCoins} xu để nâng cấp Creator 💜`
-                        : userCoins < 500
-                        ? `Tích thêm ${500 - userCoins} xu để đạt cấp Icon ⭐`
-                        : 'Bạn đã đạt cấp độ Icon cao nhất ⭐'}
-                    </p>
-                    <div className="mt-4 space-y-2">
-                      {[
-                        { label: 'Hoàn xu sau mỗi đơn chụp', desc: '+2% giá trị đơn hoàn tất', value: '+2%' },
-                        { label: 'Đổi xu lấy voucher', desc: '10 xu = 1.000đ trừ trực tiếp', value: '1:100' },
-                      ].map((item, i) => (
-                        <div key={i} className="flex items-center justify-between text-xs py-2 border-t border-white/10">
-                          <div>
-                            <div className="text-white font-medium">{item.label}</div>
-                            <div className="text-white/50 text-[11px]">{item.desc}</div>
-                          </div>
-                          <span className="text-amber-300 font-bold">{item.value}</span>
-                        </div>
-                      ))}
-                    </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -878,66 +1185,132 @@ export default function HomePage() {
               Trải nghiệm thực tế tại FLASHY
             </h2>
             <p className="text-muted-foreground text-sm max-w-xl mx-auto">
-              100% đánh giá minh bạch được đối soát qua hệ thống nghiệm thu ảnh và ký quỹ Escrow
+              100% đánh giá minh bạch được đối soát qua hệ thống nghiệm thu ảnh và ký quỹ Escrow bảo vệ khách hàng
             </p>
           </div>
 
-          {realReviews.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="rounded-3xl border border-dashed border-border/80 bg-card/60 backdrop-blur-sm p-10 md:p-14 text-center max-w-2xl mx-auto shadow-sm"
-            >
-              <div className="w-14 h-14 rounded-2xl bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto mb-4 shadow-sm">
-                <Star className="w-7 h-7 fill-amber-400" />
-              </div>
-              <h3 className="text-lg font-bold text-foreground mb-2">
-                Chưa có đánh giá nào được gửi (Clean Slate)
-              </h3>
-              <p className="text-sm text-muted-foreground leading-relaxed mb-6 max-w-md mx-auto">
-                Hệ thống ở trạng thái mới hoàn toàn. Đánh giá thực tế từ khách hàng sẽ tự động xuất hiện ngay sau khi buổi chụp ảnh hoàn tất và ảnh được nghiệm thu thành công.
-              </p>
-              <Button size="lg" className="bg-brand text-white shadow-glow-purple font-bold" asChild>
-                <Link href="/photographers">
-                  <Camera className="w-4 h-4 mr-2" />
-                  Khám phá dịch vụ & Trải nghiệm ngay
-                </Link>
-              </Button>
-            </motion.div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {realReviews.map((review, i) => (
-                <motion.div
-                  key={review.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.1 }}
-                  className="bg-card border border-border/50 rounded-2xl p-6 shadow-sm hover:shadow-premium transition-shadow duration-300"
-                >
-                  <div className="flex items-center gap-1 mb-4">
-                    {[...Array(review.rating)].map((_, j) => (
-                      <Star key={j} className="w-4 h-4 text-amber-400 fill-amber-400" />
-                    ))}
-                  </div>
-                  <p className="text-sm leading-relaxed text-foreground/80 mb-4">&ldquo;{review.content}&rdquo;</p>
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src={review.avatar} />
-                      <AvatarFallback>{review.name[0]}</AvatarFallback>
-                    </Avatar>
+          {/* Luôn đảm bảo hiển thị đúng 3 Card nằm ngang cân đối (lấy real review + bù mock review cho đủ 3) */}
+          {(() => {
+            const samplePhotos = [
+              'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&h=600&fit=crop',
+              'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=600&h=600&fit=crop',
+              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&h=600&fit=crop',
+            ]
+            const combined: Array<{
+              id: string
+              name: string
+              avatar: string
+              rating: number
+              date: string
+              content: string
+              photographer: string
+              package: string
+              productPhoto: string
+            }> = realReviews.map((r, idx) => ({
+              ...r,
+              productPhoto: r.productPhoto || samplePhotos[idx % samplePhotos.length],
+            }))
+
+            for (const mock of MOCK_REVIEWS) {
+              if (combined.length >= 3) break
+              if (!combined.some(r => r.id === mock.id)) {
+                combined.push(mock)
+              }
+            }
+            const displayReviews = combined.slice(0, 3)
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {displayReviews.map((review, i) => (
+                  <motion.div
+                    key={review.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: i * 0.1 }}
+                    className="bg-card border border-border/60 hover:border-violet-500/40 rounded-2xl p-5 shadow-sm hover:shadow-premium transition-all duration-300 flex flex-col justify-between group"
+                  >
                     <div>
-                      <div className="font-semibold text-sm">{review.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        Gói {review.package} · {review.date}
+                      {/* Customer Info & Star rating */}
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Avatar className="w-10 h-10 border-2 border-violet-100 dark:border-violet-900/40 shrink-0">
+                            <AvatarImage src={review.avatar} alt={review.name} />
+                            <AvatarFallback>{review.name[0]}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <div className="font-bold text-sm text-foreground truncate flex items-center gap-1.5">
+                              {review.name}
+                              <span className="inline-flex items-center text-[10px] text-emerald-600 dark:text-emerald-400 font-medium bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded-full border border-emerald-200/60">
+                                <ShieldCheck className="w-2.5 h-2.5 mr-0.5" /> Xác thực
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground truncate">
+                              {review.date} · Gói {review.package}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-0.5 shrink-0 bg-amber-50 dark:bg-amber-950/40 px-2 py-1 rounded-lg border border-amber-200/50">
+                          {[...Array(review.rating)].map((_, j) => (
+                            <Star key={j} className="w-3 h-3 text-amber-400 fill-amber-400" />
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Side-by-side Review Content + Completed Product Photo */}
+                      <div className="flex gap-3.5 items-stretch my-3 bg-muted/20 dark:bg-muted/10 p-3 rounded-xl border border-border/40">
+                        {/* Left: Review Text & Photographer info */}
+                        <div className="flex-1 min-w-0 flex flex-col justify-between">
+                          <p className="text-xs sm:text-sm text-foreground/85 leading-relaxed italic line-clamp-4">
+                            &ldquo;{review.content}&rdquo;
+                          </p>
+                          <div className="mt-2 pt-2 border-t border-border/30 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                            <Camera className="w-3 h-3 text-violet-500 shrink-0" />
+                            <span className="truncate">Thợ: <strong className="text-foreground font-semibold">{review.photographer}</strong></span>
+                          </div>
+                        </div>
+
+                        {/* Right: Finished Product Photo Thumbnail */}
+                        <div
+                          onClick={() => setPreviewPhoto({
+                            src: review.productPhoto,
+                            caption: `Ảnh hoàn thành buổi chụp của ${review.name} (${review.package})`,
+                            photographer: review.photographer,
+                          })}
+                          className="relative w-24 h-28 sm:w-28 sm:h-32 rounded-lg overflow-hidden shrink-0 border border-border/70 shadow-xs group-hover:shadow-md transition-all cursor-pointer group/photo"
+                          title="Bấm để xem ảnh phóng to"
+                        >
+                          <Image
+                            src={review.productPhoto}
+                            alt={`Sản phẩm thực tế buổi chụp của ${review.name}`}
+                            fill
+                            className="object-cover group-hover/photo:scale-105 transition-transform duration-300"
+                            sizes="(max-width: 768px) 120px, 120px"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-90" />
+                          <span className="absolute bottom-1.5 inset-x-1 text-center bg-black/60 backdrop-blur-xs text-white text-[9px] font-medium py-0.5 px-1 rounded flex items-center justify-center gap-1">
+                            <Sparkles className="w-2.5 h-2.5 text-amber-300 shrink-0" />
+                            Ảnh nghiệm thu
+                          </span>
+                          <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity">
+                            <Maximize2 className="w-2.5 h-2.5" />
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
+
+                    {/* Footer: Escrow Verified badge */}
+                    <div className="flex items-center justify-between pt-2 border-t border-border/40 text-[11px] text-muted-foreground">
+                      <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                        <CheckCircle className="w-3 h-3" /> Nghiệm thu Escrow 100%
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/80">Ảnh thợ chụp cho khách</span>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )
+          })()}
         </div>
       </section>
 
@@ -1098,6 +1471,45 @@ export default function HomePage() {
           </motion.div>
         </div>
       </section>
+
+      {/* Lightbox Preview Modal for Product Photos */}
+      {previewPhoto && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setPreviewPhoto(null)}
+        >
+          <div
+            className="relative max-w-2xl w-full bg-slate-900 border border-white/20 rounded-2xl overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setPreviewPhoto(null)}
+              className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center transition-colors"
+              aria-label="Đóng"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="relative aspect-[4/3] w-full bg-black">
+              <Image
+                src={previewPhoto.src}
+                alt={previewPhoto.caption}
+                fill
+                className="object-contain"
+                sizes="(max-width: 768px) 100vw, 800px"
+              />
+            </div>
+            <div className="p-4 bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-white/10">
+              <div>
+                <p className="font-semibold text-sm">{previewPhoto.caption}</p>
+                <p className="text-xs text-white/60">Nhiếp ảnh gia: {previewPhoto.photographer}</p>
+              </div>
+              <span className="text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-full flex items-center gap-1.5 self-start sm:self-auto shrink-0 font-medium">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> Nghiệm thu Escrow 100%
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

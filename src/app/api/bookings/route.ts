@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { z } from 'zod'
+import { calculateFinancialSplit } from '@/lib/utils/commission'
 
 const bookingSchema = z.object({
   photographer_id: z.string().min(1),
@@ -12,6 +13,8 @@ const bookingSchema = z.object({
   concept_notes: z.string().optional(),
   package_price: z.number().int().positive(),
   addons_total: z.number().int().nonnegative().default(0),
+  travel_fee: z.number().int().nonnegative().default(0),
+  studio_fee: z.number().int().nonnegative().default(0),
   total_amount: z.number().int().positive(),
   deposit_amount: z.number().int().positive(),
   payment_method: z.string().default('sandbox'),
@@ -31,6 +34,17 @@ export async function POST(request: NextRequest) {
 
     const bookingData = validation.data
     const bookingNumber = `BK-${Date.now().toString().slice(-6)}`
+
+    // Marketplace Financial Split:
+    // Nhóm 1: Doanh thu Dịch vụ = package_price + addons_total (Hoa hồng sàn 15%)
+    // Nhóm 2: Phụ phí Hoàn trả = travel_fee + studio_fee (100% thợ nhận, 0% hoa hồng)
+    const financialSplit = calculateFinancialSplit({
+      packagePrice: bookingData.package_price,
+      addonsTotal: bookingData.addons_total,
+      travelFee: bookingData.travel_fee,
+      studioFee: bookingData.studio_fee,
+      totalAmount: bookingData.total_amount,
+    })
 
     // Database insertion if connected
     try {
@@ -61,7 +75,7 @@ export async function POST(request: NextRequest) {
             customer_id: user.user.id,
             photographer_id: bookingData.photographer_id,
             package_id: bookingData.package_id,
-            status: 'CONFIRMED',
+            status: 'PAID_ESCROW',
             shooting_date: bookingData.shooting_date,
             shooting_time: bookingData.shooting_time,
             location_name: bookingData.location_name,
@@ -75,7 +89,13 @@ export async function POST(request: NextRequest) {
           .single()
 
         if (!error && newBooking) {
-          return NextResponse.json({ data: newBooking, error: null }, { status: 201 })
+          return NextResponse.json({
+            data: {
+              ...newBooking,
+              financial_split: financialSplit,
+            },
+            error: null,
+          }, { status: 201 })
         }
       }
     } catch (e) {
@@ -88,8 +108,9 @@ export async function POST(request: NextRequest) {
         data: {
           id: bookingNumber,
           booking_number: bookingNumber,
-          status: 'CONFIRMED',
+          status: 'PAID_ESCROW',
           ...bookingData,
+          financial_split: financialSplit,
           created_at: new Date().toISOString(),
         },
         error: null,

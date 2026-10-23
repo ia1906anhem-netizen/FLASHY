@@ -25,7 +25,16 @@ import {
   Info,
   Smartphone,
   Layers,
-  UserCheck
+  UserCheck,
+  Car,
+  Building2,
+  Timer,
+  Wand2,
+  Film,
+  Plus,
+  Minus,
+  Check,
+  Percent
 } from 'lucide-react'
 import { DEMO_PACKAGES } from '@/lib/data/mock-data'
 import { formatVND } from '@/lib/utils'
@@ -37,6 +46,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { LocationTabPicker } from '@/components/shared/location-tab-picker'
 import { createPersistentBooking, getApprovedProviders } from '@/lib/data/booking-store'
 import { calculateFullBookingCommission } from '@/lib/utils/commission'
+import {
+  calculateHaversineDistance,
+  formatDistance,
+  calculateTravelSurcharge,
+  getCoordinatesByLocation,
+  TRAVEL_SURCHARGE_FREE_RADIUS_KM,
+  TRAVEL_SURCHARGE_RATE_PER_KM
+} from '@/lib/geolocation'
+import { validateAndApplyVoucher } from '@/lib/utils/vouchers'
 
 function BookingWizardContent() {
   const params = useParams()
@@ -61,6 +79,7 @@ function BookingWizardContent() {
         district: foundApproved.district || 'Quận 1',
         city: foundApproved.city || 'Hồ Chí Minh',
         starting_price: foundApproved.starting_price || 350000,
+        service_radius_km: (foundApproved as any).service_radius_km || 8,
       }
     : null
 
@@ -88,13 +107,58 @@ function BookingWizardContent() {
     }))
   }, [photographer])
 
-  // Booking selections
+  // Booking selections & URL params handling
+  const queryDist = searchParams?.get('dist')
+  const queryLoc = searchParams?.get('loc')
+  const initialDistance = queryDist ? parseFloat(queryDist) : 0
+  const initialExtraKm = initialDistance > TRAVEL_SURCHARGE_FREE_RADIUS_KM
+    ? Math.round((initialDistance - TRAVEL_SURCHARGE_FREE_RADIUS_KM) * 10) / 10
+    : 0
+
   const [selectedPkgId, setSelectedPkgId] = useState<string>(
     preselectedPkgId || (availablePackages[0]?.id ?? 'pkg-flashy-express')
   )
   const [shootingDate, setShootingDate] = useState<string>('')
   const [shootingTime, setShootingTime] = useState<string>('09:00')
-  const [locationName, setLocationName] = useState<string>('')
+  const [locationName, setLocationName] = useState<string>(queryLoc || '')
+  const [totalDistanceKm, setTotalDistanceKm] = useState<number>(initialDistance)
+
+  // Extra distance beyond standard radius (>8km): 15.000 VNĐ / km
+  const [hasExtraDistance, setHasExtraDistance] = useState<boolean>(initialExtraKm > 0)
+  const [extraDistanceKm, setExtraDistanceKm] = useState<number>(initialExtraKm)
+
+  // Calculate coordinates of photographer
+  const photogCoords = useMemo(() => {
+    if (!photographer) return { lat: 10.7769, lng: 106.7009 }
+    return getCoordinatesByLocation(photographer.district || photographer.city)
+  }, [photographer])
+
+  // Recalculate distance dynamically when location changes
+  const handleLocationChange = (loc: string) => {
+    setLocationName(loc)
+    if (!loc.trim()) return
+    const locCoords = getCoordinatesByLocation(loc)
+    const dist = calculateHaversineDistance(
+      locCoords.lat,
+      locCoords.lng,
+      photogCoords.lat,
+      photogCoords.lng
+    )
+    setTotalDistanceKm(dist)
+    if (dist > TRAVEL_SURCHARGE_FREE_RADIUS_KM) {
+      setHasExtraDistance(true)
+      setExtraDistanceKm(Math.round((dist - TRAVEL_SURCHARGE_FREE_RADIUS_KM) * 10) / 10)
+    } else {
+      setHasExtraDistance(false)
+      setExtraDistanceKm(0)
+    }
+  }
+
+  // Basic Studio rental option: 150.000 VNĐ / hour
+  const [isStudioRental, setIsStudioRental] = useState<boolean>(false)
+  const [studioHours, setStudioHours] = useState<number>(1)
+
+  // Addons & concept
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([])
   const [conceptNotes, setConceptNotes] = useState<string>('')
   
@@ -119,19 +183,84 @@ function BookingWizardContent() {
     delivery_days: 1
   }
 
-  // Cost calculations
-  const ADDONS = [
-    { id: 'addon-makeup', name: 'Trang điểm chuyên nghiệp', description: 'Có chuyên viên makeup đi kèm buổi chụp', price: 250000 },
-    { id: 'addon-drone', name: 'Chụp flycam / drone', description: 'Bay flycam ghi hình từ trên cao', price: 500000 },
-    { id: 'addon-retouch', name: 'Retouch chuyên sâu (thêm 5 ảnh)', description: 'Chỉnh sửa nâng cao da, ánh sáng, background', price: 200000 },
-    { id: 'addon-video', name: 'Video highlights (30–60s)', description: 'Clip highlight buổi chụp phong cách cinematic', price: 350000 },
-  ]
   const packagePrice = selectedPackage.base_price
-  const addonsTotal = selectedAddonIds.reduce((sum, id) => {
+
+  // 1. Phụ phí di chuyển ngoài bán kính tiêu chuẩn (>8km): 15.000 VNĐ / km
+  const TRAVEL_UNIT_PRICE = TRAVEL_SURCHARGE_RATE_PER_KM // 15.000 VNĐ / km
+  const travelFee = (hasExtraDistance || extraDistanceKm > 0) ? Math.round(Math.max(0, extraDistanceKm) * TRAVEL_UNIT_PRICE) : 0
+
+  // 2. Thuê Studio cơ bản: 150.000 VNĐ / giờ
+  const STUDIO_UNIT_PRICE = 150000
+  const studioFee = isStudioRental ? Math.max(1, studioHours) * STUDIO_UNIT_PRICE : 0
+
+  // 3. Phí giao ảnh siêu tốc trong 24h: (+25% giá trị gói gốc)
+  const expressDeliveryFee = Math.round(packagePrice * 0.25)
+
+  // Core & Partner Add-ons List
+  const ADDONS = useMemo(() => [
+    {
+      id: 'addon-extra-time',
+      name: 'Thêm thời gian chụp: 30 phút',
+      description: 'Kéo dài thêm 30 phút để bắt trọn nhiều góc ảnh và thay đổi trang phục thoải mái',
+      price: 250000,
+      icon: Timer,
+      badge: '+30 phút',
+      isCore: true,
+    },
+    {
+      id: 'addon-retouch-extra',
+      name: 'Thêm ảnh Retouch kỹ: 5 ảnh',
+      description: 'Chỉnh sửa chuyên sâu da, vóc dáng, ánh sáng và màu sắc đạt chuẩn in ấn thương mại',
+      price: 200000,
+      icon: Wand2,
+      badge: '+5 ảnh',
+      isCore: true,
+    },
+    {
+      id: 'addon-fast-delivery',
+      name: 'Giao ảnh siêu tốc trong 24h',
+      description: `Ưu tiên xếp hàng hậu kỳ, trả toàn bộ file gốc và file chỉnh sửa hoàn thiện chỉ trong 24 giờ (+25% giá trị gói gốc)`,
+      price: expressDeliveryFee,
+      icon: Zap,
+      badge: '+25% gói gốc',
+      isDynamicPercent: true,
+      isCore: true,
+    },
+    {
+      id: 'addon-reels-tiktok',
+      name: 'Quay video ngắn hậu trường/Reels/TikTok',
+      description: 'Clip ngắn 15–30s dựng sẵn âm nhạc bắt trend TikTok, Reels, Shorts sẵn sàng đăng tải',
+      price: 250000,
+      icon: Film,
+      badge: 'Video 4K',
+      isCore: true,
+    },
+    {
+      id: 'addon-makeup',
+      name: 'Trang điểm chuyên nghiệp (Makeup & Hair)',
+      description: 'Có chuyên viên makeup đi kèm suốt buổi chụp và dặm phấn liên tục',
+      price: 250000,
+      icon: Sparkles,
+      badge: 'Đối tác',
+      isCore: false,
+    },
+    {
+      id: 'addon-drone',
+      name: 'Chụp flycam / drone toàn cảnh',
+      description: 'Thiết bị bay drone chuyên dụng ghi lại khung cảnh hùng vĩ từ góc trên cao',
+      price: 500000,
+      icon: Camera,
+      badge: 'Ngoại cảnh',
+      isCore: false,
+    },
+  ], [packagePrice, expressDeliveryFee])
+
+  const addonsItemsTotal = selectedAddonIds.reduce((sum, id) => {
     const addon = ADDONS.find(a => a.id === id)
     return sum + (addon ? addon.price : 0)
   }, 0)
-  const travelFee = 0 // Within free radius
+
+  const addonsTotal = addonsItemsTotal + studioFee
   const subtotal = packagePrice + addonsTotal + travelFee
 
   const discountAmount = useMemo(() => {
@@ -147,30 +276,56 @@ function BookingWizardContent() {
 
   const totalPayable = Math.max(0, subtotal - discountAmount)
   const depositAmount = Math.round(totalPayable * 0.3) // 30% deposit
+  const remainingAmount = Math.max(0, totalPayable - depositAmount) // 70% còn lại
 
   const commissionBreakdown = useMemo(() => {
-    const selectedAddonsList = ADDONS.filter((a) => selectedAddonIds.includes(a.id)).map((a) => ({
+    const selectedAddonsList: any[] = ADDONS.filter((a) => selectedAddonIds.includes(a.id)).map((a) => ({
       id: a.id,
       name: a.name,
+      category: 'service' as const,
       amountVnd: a.price,
     }))
+    if (isStudioRental && studioFee > 0) {
+      selectedAddonsList.push({
+        id: 'addon-studio',
+        name: `Hỗ trợ thuê Studio (${studioHours} giờ)`,
+        category: 'reimbursement' as const,
+        amountVnd: studioFee,
+      })
+    }
+    if (travelFee > 0) {
+      selectedAddonsList.push({
+        id: 'addon-travel',
+        name: `Phụ phí di chuyển (>8km: ${extraDistanceKm} km)`,
+        category: 'reimbursement' as const,
+        amountVnd: travelFee,
+      })
+    }
     return calculateFullBookingCommission({
       packageSlug: selectedPackage.slug,
       packageAmountVnd: packagePrice,
       photographerCompletedCount: 5,
       addons: selectedAddonsList,
+      travelFee,
+      studioFee,
     })
-  }, [selectedPackage, packagePrice, selectedAddonIds])
+  }, [selectedPackage, packagePrice, selectedAddonIds, ADDONS, isStudioRental, studioHours, studioFee, travelFee, extraDistanceKm])
 
-  const handleApplyVoucher = () => {
+  const handleApplyVoucher = (codeParam?: string) => {
+    const code = (codeParam || voucherCode).trim()
     setVoucherError('')
-    // Vouchers come from real backend; for now, clear applied voucher on invalid code
-    if (voucherCode.trim().length === 0) {
+    if (!code) {
       setVoucherError('Vui lòng nhập mã voucher')
       return
     }
-    setVoucherError('Mã ưu đãi không hợp lệ hoặc đã hết hạn')
-    setAppliedVoucher(null)
+    const res = validateAndApplyVoucher(code, subtotal)
+    if (res.valid && res.voucher) {
+      setAppliedVoucher(res.voucher)
+      setVoucherCode(res.voucher.code)
+    } else {
+      setVoucherError(res.error || 'Mã ưu đãi không hợp lệ hoặc đã hết hạn')
+      setAppliedVoucher(null)
+    }
   }
 
   const toggleAddon = (addonId: string) => {
@@ -191,6 +346,22 @@ function BookingWizardContent() {
         price: a.price,
       }))
 
+      if (isStudioRental && studioFee > 0) {
+        selectedAddonsList.push({
+          id: 'addon-studio',
+          name: `Hỗ trợ thuê Studio (${studioHours} giờ)`,
+          price: studioFee,
+        })
+      }
+
+      if (travelFee > 0) {
+        selectedAddonsList.push({
+          id: 'addon-travel',
+          name: `Phụ phí di chuyển (>8km: ${extraDistanceKm} km)`,
+          price: travelFee,
+        })
+      }
+
       // Persist to store
       const persistent = createPersistentBooking({
         photographer_id: photographer.id,
@@ -201,14 +372,21 @@ function BookingWizardContent() {
         package_name: selectedPackage.name,
         shooting_date: shootingDate,
         shooting_time: shootingTime,
+        duration_minutes: selectedPackage.duration_minutes,
         location: locationName || 'Bưu điện Thành Phố & Nhà thờ Đức Bà',
         concept_notes: conceptNotes,
         package_price: packagePrice,
         addons_total: addonsTotal,
+        travel_fee: travelFee,
+        extra_distance_km: extraDistanceKm,
+        studio_fee: studioFee,
+        studio_hours: isStudioRental ? studioHours : 0,
         total_amount: totalPayable,
         deposit_amount: depositAmount,
         payment_method: paymentMethod,
         selected_addons: selectedAddonsList,
+        voucher_code: appliedVoucher?.code,
+        discount_amount: discountAmount,
       })
 
       setBookingSuccess(persistent)
@@ -472,10 +650,149 @@ function BookingWizardContent() {
                     </label>
                     <LocationTabPicker
                       value={locationName}
-                      onChange={(val) => setLocationName(val)}
+                      onChange={handleLocationChange}
                       serviceRadiusKm={photographer.service_radius_km}
                       photographerName={photographer.display_name}
                     />
+                  </div>
+
+                  {/* Di chuyển ngoài bán kính tiêu chuẩn (>8km) */}
+                  <div className={`p-4 rounded-2xl border transition-all ${
+                    hasExtraDistance || extraDistanceKm > 0
+                      ? 'border-violet-600 bg-violet-50/40 shadow-sm'
+                      : 'border-slate-200 bg-slate-50/60'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Car className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 text-xs">
+                              Di chuyển ngoài bán kính tiêu chuẩn (&gt;8km)
+                            </span>
+                            <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">
+                              15.000 VNĐ / km (Miễn phí 8km đầu)
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            FLASHY miễn phí di chuyển 8km đầu quanh khu vực {photographer.district}. Phụ phí hỗ trợ thợ chỉ tính cho số km vượt quá 8km.
+                          </p>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer ml-3 flex-shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={hasExtraDistance || extraDistanceKm > 0}
+                          onChange={(e) => {
+                            setHasExtraDistance(e.target.checked)
+                            if (!e.target.checked) setExtraDistanceKm(0)
+                            else if (extraDistanceKm === 0) setExtraDistanceKm(5)
+                          }}
+                          className="sr-only peer"
+                        />
+                        <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-violet-600"></div>
+                      </label>
+                    </div>
+
+                    {/* Dynamic Distance Indicator */}
+                    {totalDistanceKm > 0 && (
+                      <div className={`mt-3 p-2.5 rounded-xl border text-xs flex items-center justify-between ${
+                        extraDistanceKm > 0
+                          ? 'bg-amber-50/80 border-amber-200 text-amber-900'
+                          : 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          <MapPin className={`w-4 h-4 flex-shrink-0 ${extraDistanceKm > 0 ? 'text-amber-600' : 'text-emerald-600'}`} />
+                          <span>
+                            Khoảng cách thực tế: <strong>{formatDistance(totalDistanceKm)}</strong>
+                            {extraDistanceKm > 0 ? ` (Vượt tiêu chuẩn: +${extraDistanceKm} km)` : ' (Trong bán kính chuẩn ≤ 8km)'}
+                          </span>
+                        </div>
+                        <span className="font-bold">
+                          {extraDistanceKm > 0 ? `+${formatVND(travelFee)}` : 'Miễn phí 0 VNĐ'}
+                        </span>
+                      </div>
+                    )}
+
+                    {(hasExtraDistance || extraDistanceKm > 0) && (
+                      <div className="mt-3 pt-3 border-t border-slate-200/70 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-700">
+                            Số km vượt tiêu chuẩn (&gt;8km):
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setExtraDistanceKm((prev) => Math.max(0, Math.round((prev - 1) * 10) / 10))}
+                              className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-700"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <div className="relative w-28">
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                placeholder="0"
+                                value={extraDistanceKm || ''}
+                                onChange={(e) => {
+                                  const val = Math.max(0, parseFloat(e.target.value) || 0)
+                                  setExtraDistanceKm(val)
+                                  if (val > 0) setHasExtraDistance(true)
+                                }}
+                                className="text-center font-bold text-xs h-8 pr-7 rounded-lg"
+                              />
+                              <span className="absolute right-2 top-1.5 text-[11px] text-slate-400 font-bold pointer-events-none">
+                                km
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setExtraDistanceKm((prev) => Math.round((prev + 1) * 10) / 10)
+                                setHasExtraDistance(true)
+                              }}
+                              className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-700"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Quick preset chips */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] text-slate-400 font-medium">Chọn nhanh cự ly:</span>
+                          {[3, 5, 8, 12, 15, 20].map((km) => (
+                            <button
+                              key={km}
+                              type="button"
+                              onClick={() => {
+                                setExtraDistanceKm(km)
+                                setHasExtraDistance(true)
+                              }}
+                              className={`text-[11px] px-2.5 py-0.5 rounded-lg border transition-all ${
+                                extraDistanceKm === km
+                                  ? 'bg-violet-600 text-white border-violet-600 font-bold shadow-sm'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:border-violet-300'
+                              }`}
+                            >
+                              +{km} km
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="flex items-center justify-between p-2.5 rounded-xl bg-violet-100/60 border border-violet-200/80 text-xs">
+                          <span className="text-violet-900 font-semibold text-[11px]">
+                            Phụ phí di chuyển ({extraDistanceKm} km × 15.000 VNĐ):
+                          </span>
+                          <span className="font-black text-violet-700 text-sm">
+                            +{formatVND(travelFee)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-4 flex justify-between">
@@ -493,25 +810,100 @@ function BookingWizardContent() {
 
               {/* STEP 3: ADDONS & CONCEPT NOTES */}
               {step === 3 && (
-                <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm space-y-5">
-                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-violet-600" />
-                    Bước 3: Chọn thêm dịch vụ & Ghi chú concept
-                  </h3>
-
+                <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm space-y-6">
                   <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-2">Dịch vụ cộng thêm tùy chọn (Add-ons):</label>
+                    <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                      <Sparkles className="w-5 h-5 text-violet-600" />
+                      Bước 3: Chọn thêm dịch vụ & Ghi chú concept
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Lựa chọn các tiện ích bổ sung để nâng tầm chất lượng bộ ảnh của bạn.
+                    </p>
+                  </div>
+
+                  {/* 1. Thuê Studio cơ bản (+150.000 VNĐ/giờ) */}
+                  <div className={`p-4 rounded-2xl border transition-all ${
+                    isStudioRental
+                      ? 'border-violet-600 bg-violet-50/50 shadow-sm ring-1 ring-violet-500/20'
+                      : 'border-slate-200 bg-slate-50/50 hover:border-slate-300'
+                  }`}>
+                    <div className="flex items-start justify-between">
+                      <label className="flex items-start gap-3 cursor-pointer flex-1">
+                        <input
+                          type="checkbox"
+                          checked={isStudioRental}
+                          onChange={(e) => {
+                            setIsStudioRental(e.target.checked)
+                            if (e.target.checked && studioHours === 0) setStudioHours(1)
+                          }}
+                          className="mt-1 rounded text-violet-600 focus:ring-violet-500 w-4 h-4"
+                        />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <Building2 className="w-4 h-4 text-violet-600" />
+                            <p className="font-bold text-slate-900 text-xs">
+                              Cần hỗ trợ thuê Studio (+150.000 VNĐ/giờ)
+                            </p>
+                            <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full">
+                              Studio Cơ Bản
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            FLASHY kết nối Studio đối tác tiện nghi: phòng máy lạnh, setup phông nền trơn/concept, gương makeup và hệ thống đèn flash tiêu chuẩn.
+                          </p>
+                        </div>
+                      </label>
+                      <span className="font-black text-violet-700 text-xs whitespace-nowrap ml-3">
+                        {isStudioRental ? `+${formatVND(studioFee)}` : '+150.000 VNĐ/giờ'}
+                      </span>
+                    </div>
+
+                    {isStudioRental && (
+                      <div className="mt-3 pt-3 border-t border-violet-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                        <span className="text-slate-700 font-bold">Số giờ thuê Studio:</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setStudioHours((prev) => Math.max(1, prev - 1))}
+                            className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-700"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="font-black text-slate-900 w-16 text-center text-xs">
+                            {studioHours} giờ
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setStudioHours((prev) => prev + 1)}
+                            className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-700"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="text-[11px] text-slate-500 ml-1">
+                            ({studioHours}h × 150.000đ = <strong className="text-violet-700">{formatVND(studioFee)}</strong>)
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. Danh sách Dịch vụ mua thêm (Add-ons) */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-2">
+                      Danh sách Dịch vụ mua thêm (Add-ons):
+                    </label>
                     <div className="space-y-2.5">
                       {ADDONS.map((addon) => {
                         const isChecked = selectedAddonIds.includes(addon.id)
+                        const Icon = addon.icon
                         return (
                           <div
                             key={addon.id}
                             onClick={() => toggleAddon(addon.id)}
                             className={`p-3.5 rounded-2xl border cursor-pointer flex items-center justify-between transition-all ${
                               isChecked
-                                ? 'border-violet-600 bg-violet-50/50 shadow-sm'
-                                : 'border-slate-200 hover:border-slate-300 bg-slate-50/50'
+                                ? 'border-violet-600 bg-violet-50/50 shadow-sm ring-1 ring-violet-500/20'
+                                : 'border-slate-200 hover:border-slate-300 bg-slate-50/40'
                             }`}
                           >
                             <div className="flex items-center gap-3">
@@ -521,37 +913,83 @@ function BookingWizardContent() {
                                 onChange={() => {}}
                                 className="rounded text-violet-600 focus:ring-violet-500 w-4 h-4 pointer-events-none"
                               />
+                              <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-violet-600 flex-shrink-0">
+                                <Icon className="w-4 h-4" />
+                              </div>
                               <div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <p className="font-bold text-slate-900 text-xs">{addon.name}</p>
-                                  {addon.id === 'addon-1' && (
-                                    <span className="text-[10px] font-black bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full">
-                                      MUA Tự Do (10% Phí sàn)
+                                  {addon.badge && (
+                                    <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-2 py-0.2 rounded-full">
+                                      {addon.badge}
                                     </span>
                                   )}
-                                  {addon.id === 'addon-2' && (
-                                    <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                                      Shop Đối Tác (10%–12% Chiết khấu)
+                                  {addon.id === 'addon-fast-delivery' && (
+                                    <span className="text-[10px] font-black bg-rose-100 text-rose-700 px-2 py-0.2 rounded-full">
+                                      Hỏa Tốc
                                     </span>
                                   )}
                                 </div>
                                 <p className="text-[11px] text-slate-500 mt-0.5">{addon.description}</p>
                               </div>
                             </div>
-                            <span className="font-black text-violet-700 text-xs">+{formatVND(addon.price)}</span>
+                            <div className="text-right flex-shrink-0 ml-3">
+                              <span className="font-black text-violet-700 text-xs block">
+                                +{formatVND(addon.price)}
+                              </span>
+                              {addon.id === 'addon-fast-delivery' && (
+                                <span className="text-[10px] text-slate-400 font-semibold block">
+                                  (25% gói gốc)
+                                </span>
+                              )}
+                            </div>
                           </div>
                         )
                       })}
                     </div>
                   </div>
 
+                  {/* 3. Phụ phí di chuyển ngoài bán kính (>8km) - Đồng bộ & Xem lại nhanh */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <Car className="w-4 h-4 text-slate-600" />
+                      <div>
+                        <span className="font-bold text-slate-800">
+                          Phụ phí di chuyển (&gt;8km):
+                        </span>
+                        <span className="text-[11px] text-slate-500 block">
+                          {extraDistanceKm > 0
+                            ? `Đã tính ${extraDistanceKm} km vượt chuẩn × 12.000 VNĐ = +${formatVND(travelFee)}`
+                            : 'Miễn phí trong bán kính tiêu chuẩn 8km'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-violet-700 text-xs">
+                        {extraDistanceKm > 0 ? `+${formatVND(travelFee)}` : '0 VNĐ'}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setStep(2)}
+                        className="h-7 text-[10px] rounded-lg px-2"
+                      >
+                        Chỉnh sửa km
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* 4. Ghi chú concept */}
                   <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1.5">Ghi chú phong cách / Yêu cầu đặc biệt:</label>
+                    <label className="text-xs font-bold text-slate-700 block mb-1.5">
+                      Ghi chú phong cách / Yêu cầu đặc biệt:
+                    </label>
                     <Textarea
                       rows={3}
                       value={conceptNotes}
                       onChange={(e) => setConceptNotes(e.target.value)}
-                      placeholder="Ví dụ: Tone màu film 90s, trang phục áo dài trắng, muốn chụp góc nghiêng..."
+                      placeholder="Ví dụ: Tone màu film 90s, trang phục áo dài trắng, muốn chụp góc nghiêng, có mang theo thú cưng..."
                       className="rounded-xl text-xs"
                     />
                   </div>
@@ -580,36 +1018,112 @@ function BookingWizardContent() {
                   {/* Detailed Invoice & Transparent Commission Breakdown */}
                   <div className="p-5 bg-slate-50/90 rounded-2xl border border-slate-200 text-xs space-y-3">
                     <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                      <span className="font-bold text-slate-800 text-sm">Hóa Đơn Buổi Chụp & Bóc Tách Thù Lao</span>
+                      <div>
+                        <span className="font-bold text-slate-800 text-sm block">Hóa Đơn Buổi Chụp & Bóc Tách Minh Bạch</span>
+                        <span className="text-[10px] text-slate-400">Chuẩn Marketplace: Phân tách Doanh thu Dịch vụ & Phụ phí Hoàn trả</span>
+                      </div>
                       <span className="text-[11px] font-semibold text-violet-700 bg-violet-100/70 px-2 py-0.5 rounded-full">
                         Minh bạch 100%
                       </span>
                     </div>
 
-                    <div className="space-y-2 text-slate-600">
+                    <div className="space-y-2.5 text-slate-600">
+                      {/* 1. Gói chụp lựa chọn */}
                       <div className="flex justify-between items-center">
                         <div>
-                          <span className="font-semibold text-slate-800">Gói chụp ({selectedPackage.name}):</span>
-                          <span className="text-[11px] text-slate-400 block">Thời lượng: {selectedPackage.duration_minutes} phút</span>
+                          <span className="font-semibold text-slate-800">1. Gói chụp ({selectedPackage.name}):</span>
+                          <span className="text-[11px] text-slate-400 block">Thời lượng: {selectedPackage.duration_minutes} phút • {selectedPackage.edited_photos} ảnh retouch</span>
                         </div>
                         <span className="font-bold text-slate-900">{formatVND(packagePrice)}</span>
                       </div>
 
-                      {/* Addons breakdown with specific commission notes */}
-                      {commissionBreakdown.addonCommissions.length > 0 && (
+                      {/* 2. Các dịch vụ mua thêm (Add-ons selected) */}
+                      {selectedAddonIds.length > 0 && (
                         <div className="pt-2 border-t border-slate-200/60 space-y-1.5">
-                          <span className="font-bold text-slate-700 block">Dịch vụ cộng thêm & Đối tác:</span>
-                          {commissionBreakdown.addonCommissions.map((ad, idx) => (
-                            <div key={idx} className="flex justify-between text-[11px] pl-2 py-0.5 bg-white/70 rounded-lg px-2">
-                              <div>
-                                <span className="font-semibold text-slate-800">• {ad.name}</span>
-                                <span className="text-[10px] text-emerald-700 font-bold ml-1.5 bg-emerald-50 px-1.5 py-0.2 rounded">
-                                  Thợ nhận 100% phụ phí
-                                </span>
+                          <div className="flex justify-between items-center">
+                            <span className="font-semibold text-slate-800">2. Dịch vụ mua thêm (Add-ons):</span>
+                            <span className="font-bold text-slate-900">+{formatVND(addonsItemsTotal)}</span>
+                          </div>
+                          {selectedAddonIds.map((id) => {
+                            const ad = ADDONS.find((a) => a.id === id)
+                            if (!ad) return null
+                            return (
+                              <div key={id} className="flex justify-between text-[11px] pl-3 py-0.5 bg-white/70 rounded-lg px-2">
+                                <span className="text-slate-700">• {ad.name}</span>
+                                <span className="font-semibold text-slate-900">+{formatVND(ad.price)}</span>
                               </div>
-                              <span className="font-bold text-slate-900">+{formatVND(ad.amountVnd)}</span>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {/* Gross Service Value Subtotal */}
+                      <div className="flex justify-between text-[11px] font-bold text-violet-800 bg-violet-50/70 px-2.5 py-1.5 rounded-xl border border-violet-100">
+                        <span>Tổng tiền dịch vụ chụp (Gross Service Value):</span>
+                        <span>{formatVND(packagePrice + addonsItemsTotal)}</span>
+                      </div>
+
+                      {/* 3. Phụ thu di chuyển (>8km) with exact tooltip explanation */}
+                      {travelFee > 0 ? (
+                        <div className="pt-2 border-t border-slate-200/60">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-slate-800 text-xs">
+                                  3. Phụ thu di chuyển ngoài bán kính tiêu chuẩn (&gt;8km):
+                                </span>
+                                <div className="group relative inline-block">
+                                  <Info className="w-3.5 h-3.5 text-violet-600 cursor-pointer" />
+                                  <div className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-64 p-2 bg-slate-900 text-white text-[10px] rounded-lg shadow-lg z-20 leading-snug">
+                                    Miễn phí 8km đầu tiên, phụ thu 15.000đ/km để hỗ trợ thợ di chuyển
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+                                  </div>
+                                </div>
+                              </div>
+                              <span className="text-[10px] text-slate-500 block mt-0.5">
+                                {extraDistanceKm} km vượt chuẩn × 15.000 VNĐ/km • <em>Chuyển trọn 100% cho Thợ</em>
+                              </span>
+                              <div className="inline-flex items-center gap-1 text-[10px] text-violet-700 bg-violet-50 px-2 py-0.5 rounded mt-1">
+                                <Info className="w-3 h-3 text-violet-600" />
+                                <span>Miễn phí 8km đầu tiên, phụ thu 15.000đ/km để hỗ trợ thợ di chuyển</span>
+                              </div>
                             </div>
-                          ))}
+                            <span className="font-bold text-slate-900 text-xs">+{formatVND(travelFee)}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex justify-between items-center py-1.5 border-t border-slate-200/60 text-xs text-emerald-700">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold">3. Phí di chuyển tiêu chuẩn (≤8km):</span>
+                              <div className="group relative inline-block">
+                                <Info className="w-3.5 h-3.5 text-emerald-600 cursor-pointer" />
+                                <div className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 w-60 p-2 bg-slate-900 text-white text-[10px] rounded-lg shadow-lg z-20 leading-snug">
+                                  Miễn phí 8km đầu tiên, phụ thu 15.000đ/km để hỗ trợ thợ di chuyển
+                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+                                </div>
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-emerald-600 block">
+                              Miễn phí 8km đầu tiên, phụ thu 15.000đ/km để hỗ trợ thợ di chuyển
+                            </span>
+                          </div>
+                          <span className="font-bold">0 VNĐ (Miễn phí)</span>
+                        </div>
+                      )}
+
+                      {/* Studio Rental if any */}
+                      {isStudioRental && studioFee > 0 && (
+                        <div className="flex justify-between items-center py-1 border-t border-slate-200/60">
+                          <div>
+                            <span className="font-semibold text-slate-800">
+                              4. Hỗ trợ thuê Studio cơ bản:
+                            </span>
+                            <span className="text-[10px] text-slate-400 block">
+                              {studioHours} giờ × 150.000 VNĐ / giờ • Chuyển 100% cho Thợ/Studio
+                            </span>
+                          </div>
+                          <span className="font-bold text-slate-900">+{formatVND(studioFee)}</span>
                         </div>
                       )}
 
@@ -620,22 +1134,31 @@ function BookingWizardContent() {
                         </div>
                       )}
 
+                      {/* Total Amount Payable */}
                       <div className="flex justify-between font-bold text-slate-900 text-sm pt-2 border-t border-slate-200">
-                        <span>Tổng giá trị đơn hàng:</span>
-                        <span className="text-violet-700 font-black">{formatVND(totalPayable)}</span>
+                        <div>
+                          <span>Tổng khách thanh toán:</span>
+                          <span className="text-[10px] text-slate-400 font-normal block">
+                            (Gói + Add-ons) + Phụ thu di chuyển
+                          </span>
+                        </div>
+                        <span className="text-violet-700 font-black text-base">{formatVND(totalPayable)}</span>
                       </div>
 
+                      {/* Escrow Deposit (30%) */}
                       <div className="flex justify-between items-center text-emerald-800 font-bold bg-emerald-50 p-3 rounded-xl border border-emerald-200">
                         <div>
-                          <span className="text-xs">Tiền cọc ký quỹ Escrow hôm nay (30%):</span>
-                          <span className="text-[10px] text-emerald-600 block font-normal">Được giữ an toàn cho đến khi bạn duyệt nhận ảnh</span>
+                          <span className="text-xs">Số tiền đặt cọc 30% qua Escrow hôm nay:</span>
+                          <span className="text-[10px] text-emerald-600 block font-normal">
+                            Bảo vệ ký quỹ an toàn – Chỉ giải ngân sau khi bạn duyệt nhận ảnh
+                          </span>
                         </div>
                         <span className="font-black text-base text-emerald-700">{formatVND(depositAmount)}</span>
                       </div>
 
                       <div className="flex justify-between text-slate-500 text-[11px] px-1">
                         <span>70% còn lại thanh toán sau buổi chụp:</span>
-                        <span className="font-bold text-slate-700">{formatVND(totalPayable - depositAmount)}</span>
+                        <span className="font-bold text-slate-700">{formatVND(remainingAmount)}</span>
                       </div>
                     </div>
                   </div>
@@ -733,15 +1256,68 @@ function BookingWizardContent() {
                 </div>
                 <p className="text-[11px] text-slate-400">⏱️ {selectedPackage.duration_minutes} phút • {selectedPackage.edited_photos} ảnh màu</p>
                 
+                {/* Distance fee with tooltip */}
+                {travelFee > 0 ? (
+                  <div className="pt-1.5 border-t border-slate-100">
+                    <div className="flex justify-between text-[11px] text-slate-700">
+                      <span className="flex items-center gap-1 font-semibold text-slate-800">
+                        <Car className="w-3 h-3 text-violet-600" />
+                        Phụ thu di chuyển (&gt;8km: {extraDistanceKm}km):
+                        <div className="group relative inline-block">
+                          <Info className="w-3 h-3 text-violet-600 cursor-pointer" />
+                          <div className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-52 p-2 bg-slate-900 text-white text-[10px] rounded shadow-lg z-20 leading-snug">
+                            Miễn phí 8km đầu tiên, phụ thu 15.000đ/km để hỗ trợ thợ di chuyển
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+                          </div>
+                        </div>
+                      </span>
+                      <span className="font-bold text-slate-900">+{formatVND(travelFee)}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                      {extraDistanceKm} km vượt × 15.000đ/km (Thợ nhận 100%)
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-[11px] text-emerald-700 pt-1">
+                    <span className="flex items-center gap-1">
+                      <Car className="w-3 h-3 text-emerald-600" />
+                      Phí di chuyển (≤8km):
+                      <div className="group relative inline-block">
+                        <Info className="w-3 h-3 text-emerald-600 cursor-pointer" />
+                        <div className="opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity absolute bottom-full left-1/2 -translate-x-1/2 mb-1 w-52 p-2 bg-slate-900 text-white text-[10px] rounded shadow-lg z-20 leading-snug">
+                          Miễn phí 8km đầu tiên, phụ thu 15.000đ/km để hỗ trợ thợ di chuyển
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+                        </div>
+                      </div>
+                    </span>
+                    <span className="font-bold">0 VNĐ (Miễn phí)</span>
+                  </div>
+                )}
+
+                {/* Studio rental fee */}
+                {isStudioRental && studioFee > 0 && (
+                  <div className="flex justify-between text-[11px] text-slate-700 pt-1">
+                    <span className="flex items-center gap-1">
+                      <Building2 className="w-3 h-3 text-violet-600" />
+                      Thuê Studio ({studioHours}h × 150k):
+                    </span>
+                    <span className="font-bold text-slate-900">+{formatVND(studioFee)}</span>
+                  </div>
+                )}
+
+                {/* Addons list */}
                 {selectedAddonIds.length > 0 && (
-                  <div className="pt-2">
-                    <p className="text-[11px] font-bold text-slate-700">Dịch vụ thêm ({selectedAddonIds.length}):</p>
+                  <div className="pt-2 border-t border-slate-100 mt-2">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-[11px] font-bold text-slate-700">Dịch vụ mua thêm ({selectedAddonIds.length}):</span>
+                      <span className="text-[11px] font-bold text-slate-900">+{formatVND(addonsItemsTotal)}</span>
+                    </div>
                     {selectedAddonIds.map(id => {
                       const ad = ADDONS.find(a => a.id === id)
                       return (
-                        <div key={id} className="flex justify-between text-[11px] text-slate-500">
+                        <div key={id} className="flex justify-between text-[11px] text-slate-500 py-0.5">
                           <span className="truncate pr-2">• {ad?.name}</span>
-                          <span>+{formatVND(ad?.price || 0)}</span>
+                          <span className="font-semibold text-slate-800 whitespace-nowrap">+{formatVND(ad?.price || 0)}</span>
                         </div>
                       )
                     })}
@@ -759,7 +1335,7 @@ function BookingWizardContent() {
                     placeholder="Mã voucher"
                     className="h-8 rounded-lg text-xs"
                   />
-                  <Button size="sm" onClick={handleApplyVoucher} variant="outline" className="h-8 rounded-lg text-xs px-2.5">
+                  <Button size="sm" onClick={() => handleApplyVoucher()} variant="outline" className="h-8 rounded-lg text-xs px-2.5">
                     Áp dụng
                   </Button>
                 </div>
@@ -774,12 +1350,18 @@ function BookingWizardContent() {
                 )}
               </div>
 
-              {/* Totals */}
+              {/* Totals Breakdown */}
               <div className="space-y-1.5 text-xs text-slate-600">
                 <div className="flex justify-between">
-                  <span>Tạm tính:</span>
-                  <span>{formatVND(subtotal)}</span>
+                  <span>Tổng tiền dịch vụ (Gross):</span>
+                  <span className="font-semibold text-slate-800">{formatVND(packagePrice + addonsItemsTotal)}</span>
                 </div>
+                {(travelFee > 0 || studioFee > 0) && (
+                  <div className="flex justify-between text-[11px]">
+                    <span>Phụ phí bù thợ (100%):</span>
+                    <span className="font-semibold text-slate-800">+{formatVND(travelFee + studioFee)}</span>
+                  </div>
+                )}
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-emerald-600 font-semibold">
                     <span>Giảm giá voucher:</span>
@@ -787,15 +1369,15 @@ function BookingWizardContent() {
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-slate-900 pt-2 border-t border-slate-100 text-sm">
-                  <span>Tổng tiền dịch vụ:</span>
-                  <span>{formatVND(totalPayable)}</span>
+                  <span>Tổng khách thanh toán:</span>
+                  <span className="text-violet-700 font-black">{formatVND(totalPayable)}</span>
                 </div>
-                <div className="flex justify-between font-black text-violet-700 text-base pt-1">
-                  <span>Tiền cọc cần trả (30%):</span>
+                <div className="flex justify-between font-black text-emerald-700 text-sm bg-emerald-50 p-2 rounded-lg border border-emerald-100">
+                  <span>Số tiền đặt cọc 30% (Escrow):</span>
                   <span>{formatVND(depositAmount)}</span>
                 </div>
                 <p className="text-[10px] text-slate-400 text-right">
-                  70% còn lại thanh toán sau khi buổi chụp kết thúc
+                  70% ({formatVND(remainingAmount)}) thanh toán sau buổi chụp
                 </p>
               </div>
 

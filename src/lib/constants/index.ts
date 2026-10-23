@@ -27,11 +27,12 @@ export const COINS_PER_BOOKING_PERCENT = 2 // earn 2% of booking value in coins
 export const MIN_COINS_PER_BOOKING = 10
 export const MAX_COINS_PER_BOOKING = 500
 
-// Commission defaults (CP3 Standard: 15% Take Rate cố định)
+// Commission defaults (Marketplace Standard: 15% Take Rate trên Doanh thu Dịch vụ)
 export const DEFAULT_COMMISSION = {
-  TAKE_RATE: 15, // 15% phí sàn cố định cho tất cả gói dịch vụ
-  PHOTOGRAPHER_PAYOUT: 85, // 85% thù lao thợ thực nhận từ gói gốc
-  ADDONS_COMMISSION: 0, // 0% hoa hồng trên Add-ons (Thợ nhận 100% phụ phí Add-ons / di chuyển)
+  TAKE_RATE: 15, // 15% phí sàn áp dụng lên Nhóm 1: Doanh thu Dịch vụ (Gói gốc + Add-ons)
+  PHOTOGRAPHER_PAYOUT: 85, // 85% thù lao thợ thực nhận từ Doanh thu Dịch vụ
+  ADDONS_COMMISSION: 15, // 15% hoa hồng trên các dịch vụ mua thêm (Add-ons)
+  REIMBURSEMENT_COMMISSION: 0, // 0% hoa hồng trên Phụ phí hoàn trả (Di chuyển ngoài 8km, Studio/Vé) - Thợ nhận 100%
   // Tương thích các gói CP3 và backward compatibility
   FLASHY_EXPRESS: 15,
   FLASHY_CASUAL: 15,
@@ -43,7 +44,7 @@ export const DEFAULT_COMMISSION = {
   OUTDOOR: 15,
   RETURNING_CUSTOMER: 15,
   NEW_PHOTOGRAPHER_FREE_BOOKINGS: 0,
-  MAKEUP_HAIR: 0,
+  MAKEUP_HAIR: 15,
   OUTFIT_RENTAL_MIN: 0,
   OUTFIT_RENTAL_MAX: 0,
   OUTFIT_RENTAL: 0,

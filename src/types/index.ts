@@ -80,6 +80,11 @@ export type Photographer = PhotographerProfile & {
   is_verified?: boolean
 }
 
+export type PhotographerWithDistance = Photographer & {
+  distanceKm?: number
+  portfolio?: string[]
+}
+
 export interface PhotographerSpecialty {
   id: string
   photographer_id: string

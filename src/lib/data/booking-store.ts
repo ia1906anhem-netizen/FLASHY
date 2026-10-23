@@ -22,16 +22,22 @@ export interface PersistentBooking {
   concept_notes?: string
   package_price: number
   addons_total: number
+  travel_fee?: number
+  extra_distance_km?: number
+  studio_fee?: number
+  studio_hours?: number
   total_amount: number
   deposit_amount: number
   remaining_amount: number
   payment_method: string
   status:
     | 'PENDING_PAYMENT'
+    | 'PAID_ESCROW'
     | 'CONFIRMED'
     | 'PHOTOGRAPHER_ARRIVED'
     | 'SHOOTING'
     | 'EDITING'
+    | 'DELIVERED'
     | 'PHOTOS_DELIVERED'
     | 'ACCEPTED'
     | 'COMPLETED'
@@ -58,15 +64,86 @@ export interface PersistentBooking {
     comment: string
     created_at: string
   }
+  // Anti-circumvention & loyalty fields
+  is_rebook?: boolean
+  is_top_rated?: boolean
+  voucher_code?: string
+  discount_amount?: number
+  cloud_photos?: Array<{
+    id: string
+    name: string
+    url: string
+    size: string
+    category?: 'edited' | 'original' | 'retouched'
+  }>
 }
 
 const STORAGE_KEY = 'flashy_user_bookings'
+const FAVORITES_STORAGE_KEY = 'flashy_favorite_photographers'
+
+export const DEFAULT_COMPLETED_BOOKINGS: PersistentBooking[] = [
+  {
+    id: 'BK-892145',
+    booking_number: 'BK-892145',
+    photographer_id: 'p-1',
+    photographer_name: 'Minh Trí (Trí Lê Visual)',
+    photographer_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+    photographer_slug: 'tri-le-visual',
+    customer_name: 'Hoàng Nam',
+    customer_phone: '0908123456',
+    package_slug: 'flashy-pro',
+    package_name: 'Flashy Pro (Nhiệt Huyết)',
+    shooting_date: '2026-10-15',
+    shooting_time: '14:30',
+    duration_minutes: 90,
+    location: 'Bưu điện TP.HCM & Đường sách Nguyễn Văn Bình',
+    concept_notes: 'Chụp chân dung ngoại cảnh phong cách tự nhiên, trang phục pastel',
+    package_price: 650000,
+    addons_total: 250000,
+    travel_fee: 0,
+    extra_distance_km: 0,
+    studio_fee: 0,
+    studio_hours: 0,
+    total_amount: 900000,
+    deposit_amount: 270000,
+    remaining_amount: 630000,
+    payment_method: 'sandbox',
+    status: 'COMPLETED',
+    status_label: 'Đã hoàn tất buổi chụp',
+    status_color: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+    created_at: '2026-10-12T10:00:00Z',
+    updated_at: '2026-10-16T18:00:00Z',
+    completed_at: '2026-10-16T18:00:00Z',
+    delivered_at: '2026-10-15T20:00:00Z',
+    coins_earned: 50,
+    is_top_rated: true,
+    selected_addons: [
+      { id: 'addon-reels-tiktok', name: 'Quay video ngắn hậu trường/Reels/TikTok', price: 250000 }
+    ],
+    review: {
+      rating: 5,
+      comment: 'Thợ chụp siêu có tâm, hướng dẫn tạo dáng nhiệt tình và màu ảnh cực đẹp!',
+      created_at: '2026-10-16T19:00:00Z'
+    },
+    cloud_photos: [
+      { id: 'hd-1', name: 'IMG_4812_HD_ColorGraded.jpg', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1600&q=90', size: '12.4 MB', category: 'edited' },
+      { id: 'hd-2', name: 'IMG_4815_HD_ColorGraded.jpg', url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=1600&q=90', size: '14.1 MB', category: 'edited' },
+      { id: 'hd-3', name: 'IMG_4820_HD_Retouched.jpg', url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=1600&q=90', size: '11.8 MB', category: 'retouched' },
+      { id: 'hd-4', name: 'IMG_4825_RAW_Master.cr3', url: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=1600&q=90', size: '28.9 MB', category: 'original' },
+      { id: 'hd-5', name: 'IMG_4830_Retouch_Face.jpg', url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=1600&q=90', size: '15.2 MB', category: 'retouched' },
+    ]
+  }
+]
 
 export function getStoredBookings(): PersistentBooking[] {
   if (typeof window === 'undefined') return []
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
+    if (!raw) {
+      // Initialize with demo completed booking so customer can test Re-book & Cloud Photo Vault immediately
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_COMPLETED_BOOKINGS))
+      return DEFAULT_COMPLETED_BOOKINGS
+    }
     return JSON.parse(raw) as PersistentBooking[]
   } catch (err) {
     console.error('Failed to parse bookings from localStorage', err)
@@ -89,6 +166,43 @@ export function getBookingById(id: string): PersistentBooking | null {
   return all.find((b) => b.id === id || b.booking_number === id) || null
 }
 
+// Favorite Photographers Helpers (Anti-Circumvention Customer Vault)
+export function getFavoritePhotographers(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(FAVORITES_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : ['p-1']
+  } catch {
+    return []
+  }
+}
+
+export function isPhotographerFavorite(photographerId: string): boolean {
+  const list = getFavoritePhotographers()
+  return list.includes(photographerId)
+}
+
+export function toggleFavoritePhotographer(photographerId: string): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const current = getFavoritePhotographers()
+    let updated: string[]
+    let isNowFav = false
+    if (current.includes(photographerId)) {
+      updated = current.filter((id) => id !== photographerId)
+      isNowFav = false
+    } else {
+      updated = [...current, photographerId]
+      isNowFav = true
+    }
+    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(updated))
+    window.dispatchEvent(new CustomEvent('flashy_favorites_updated', { detail: { photographerId, isFavorite: isNowFav } }))
+    return isNowFav
+  } catch {
+    return false
+  }
+}
+
 export function createPersistentBooking(data: {
   photographer_id: string
   photographer_name: string
@@ -106,10 +220,18 @@ export function createPersistentBooking(data: {
   concept_notes?: string
   package_price: number
   addons_total: number
+  travel_fee?: number
+  extra_distance_km?: number
+  studio_fee?: number
+  studio_hours?: number
   total_amount: number
   deposit_amount: number
   payment_method?: string
   selected_addons?: Array<{ id: string; name: string; price: number }>
+  is_rebook?: boolean
+  is_top_rated?: boolean
+  voucher_code?: string
+  discount_amount?: number
 }): PersistentBooking {
   const all = getStoredBookings()
   const randomSuffix = Math.floor(100000 + Math.random() * 900000).toString()
@@ -136,6 +258,10 @@ export function createPersistentBooking(data: {
     concept_notes: data.concept_notes,
     package_price: data.package_price,
     addons_total: data.addons_total,
+    travel_fee: data.travel_fee || 0,
+    extra_distance_km: data.extra_distance_km || 0,
+    studio_fee: data.studio_fee || 0,
+    studio_hours: data.studio_hours || 0,
     total_amount: data.total_amount,
     deposit_amount: data.deposit_amount,
     remaining_amount: Math.max(0, data.total_amount - data.deposit_amount),
@@ -147,6 +273,13 @@ export function createPersistentBooking(data: {
     updated_at: new Date().toISOString(),
     selected_addons: data.selected_addons || [],
     coins_earned: Math.min(500, Math.max(10, Math.round((data.total_amount * 2) / 100))),
+    is_rebook: Boolean(data.is_rebook),
+    is_top_rated: Boolean(data.is_top_rated),
+    voucher_code: data.voucher_code,
+    discount_amount: data.discount_amount || 0,
+    cloud_photos: [
+      { id: 'hd-new-1', name: 'PHOTO_PREVIEW_HD.jpg', url: data.photographer_avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=1600&q=90', size: '10.5 MB', category: 'edited' }
+    ],
     uploaded_photos_count: {
       original: 0,
       edited: 0,
@@ -324,9 +457,193 @@ export interface ApprovedProvider {
   badge?: string | null
   kyc_status: 'VERIFIED' | 'PENDING_REVIEW' | 'NOT_SUBMITTED'
   created_at?: string
+  /** Portfolio gallery: array of 3-4 high-quality Unsplash image URLs */
+  portfolio?: string[]
 }
 
 const PROVIDERS_STORAGE_KEY = 'flashy_approved_providers'
+const MOCK_SEED_KEY = 'flashy_mock_seeded_v2'
+
+/**
+ * MOCK SEED DATA — 6 photographers (3 TP.HCM + 3 Hà Nội)
+ * Portfolio images from Unsplash: Áo dài, Streetwear, Cafe Portrait, Couple
+ */
+export const MOCK_PHOTOGRAPHERS: ApprovedProvider[] = [
+  // ── TP. HỒ CHÍ MINH ─────────────────────────────────────────────────────
+  {
+    id: 'mock-hcm-001',
+    name: 'Minh Khoa (MK Visual)',
+    slug: 'minh-khoa-mk-visual',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face',
+    cover: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=800&h=400&fit=crop',
+    location: 'Quận 1, TP. Hồ Chí Minh',
+    city: 'TP. Hồ Chí Minh',
+    district: 'Quận 1',
+    specialty: 'Lifestyle · Street Photography · Cafe Portrait',
+    rating: 4.97,
+    reviews: 128,
+    starting_price: 800000,
+    is_verified: true,
+    is_sponsored: true,
+    badge: '🏆 Top Rated',
+    kyc_status: 'VERIFIED',
+    portfolio: [
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=400&h=400&fit=crop',
+    ],
+    created_at: '2026-01-15T08:00:00.000Z',
+  },
+  {
+    id: 'mock-hcm-002',
+    name: 'Linh Đan (Dandelion Studio)',
+    slug: 'linh-dan-dandelion-studio',
+    avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop&crop=face',
+    cover: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&h=400&fit=crop',
+    location: 'Quận 3, TP. Hồ Chí Minh',
+    city: 'TP. Hồ Chí Minh',
+    district: 'Quận 3',
+    specialty: 'Áo dài · Tết · Couple · Concept',
+    rating: 4.92,
+    reviews: 84,
+    starting_price: 1500000,
+    is_verified: true,
+    is_sponsored: false,
+    badge: '✨ KYC Verified',
+    kyc_status: 'VERIFIED',
+    portfolio: [
+      'https://images.unsplash.com/photo-1552674605-db6ffd4facb5?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1499952127939-9bbf5af6c51c?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1526510747491-58f928ec870f?w=400&h=400&fit=crop',
+    ],
+    created_at: '2026-02-10T08:00:00.000Z',
+  },
+  {
+    id: 'mock-hcm-003',
+    name: 'Trí Lê (Trí Lê Visual)',
+    slug: 'tri-le-visual',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face',
+    cover: 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&h=400&fit=crop',
+    location: 'Quận 7, TP. Hồ Chí Minh',
+    city: 'TP. Hồ Chí Minh',
+    district: 'Quận 7',
+    specialty: 'Street Photography · Urban · Streetwear',
+    rating: 4.85,
+    reviews: 63,
+    starting_price: 350000,
+    is_verified: true,
+    is_sponsored: false,
+    badge: '⚡ Sẵn sàng ngay',
+    kyc_status: 'VERIFIED',
+    portfolio: [
+      'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1509631179647-0177331693ae?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1485125639709-a60c3a500bf1?w=400&h=400&fit=crop',
+    ],
+    created_at: '2026-03-01T08:00:00.000Z',
+  },
+  // ── HÀ NỘI ─────────────────────────────────────────────────────────────
+  {
+    id: 'mock-hn-001',
+    name: 'Phương Nghi (Nghi Phim)',
+    slug: 'phuong-nghi-nghi-phim',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&h=200&fit=crop&crop=face',
+    cover: 'https://images.unsplash.com/photo-1555921015-5532091f6026?w=800&h=400&fit=crop',
+    location: 'Hoàn Kiếm, Hà Nội',
+    city: 'Hà Nội',
+    district: 'Hoàn Kiếm',
+    specialty: 'Film Portrait · Cafe · Couple · Analog',
+    rating: 5.0,
+    reviews: 47,
+    starting_price: 800000,
+    is_verified: true,
+    is_sponsored: true,
+    badge: '🎞️ Film Style',
+    kyc_status: 'VERIFIED',
+    portfolio: [
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1469371670807-013ccf25f16a?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1521119989659-a83eee488004?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1507081323647-4d250478b919?w=400&h=400&fit=crop',
+    ],
+    created_at: '2026-01-20T08:00:00.000Z',
+  },
+  {
+    id: 'mock-hn-002',
+    name: 'Quang Hải (QH Lens)',
+    slug: 'quang-hai-qh-lens',
+    avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop&crop=face',
+    cover: 'https://images.unsplash.com/photo-1490730141103-6cac27aaab94?w=800&h=400&fit=crop',
+    location: 'Tây Hồ, Hà Nội',
+    city: 'Hà Nội',
+    district: 'Tây Hồ',
+    specialty: 'Outdoor · Dã ngoại · Travel · Landscape',
+    rating: 4.88,
+    reviews: 92,
+    starting_price: 1500000,
+    is_verified: true,
+    is_sponsored: false,
+    badge: '🏔️ Outdoor Pro',
+    kyc_status: 'VERIFIED',
+    portfolio: [
+      'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1501854140801-50d01698950b?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=400&h=400&fit=crop',
+    ],
+    created_at: '2026-02-28T08:00:00.000Z',
+  },
+  {
+    id: 'mock-hn-003',
+    name: 'Bảo Châu (Studio Mây)',
+    slug: 'bao-chau-studio-may',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face',
+    cover: 'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=800&h=400&fit=crop',
+    location: 'Đống Đa, Hà Nội',
+    city: 'Hà Nội',
+    district: 'Đống Đa',
+    specialty: 'Áo dài · Concept · Kỷ yếu · Tốt nghiệp',
+    rating: 4.95,
+    reviews: 76,
+    starting_price: 3200000,
+    is_verified: true,
+    is_sponsored: false,
+    badge: '🌸 Signature Style',
+    kyc_status: 'VERIFIED',
+    portfolio: [
+      'https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1566616213894-2d4e1baee5d8?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=400&h=400&fit=crop',
+      'https://images.unsplash.com/photo-1502823403499-6ccfcf4fb453?w=400&h=400&fit=crop',
+    ],
+    created_at: '2026-03-15T08:00:00.000Z',
+  },
+]
+
+/**
+ * Seed 6 mock photographers into localStorage if not already seeded.
+ * Idempotent — uses a version key to avoid duplicate seeding.
+ */
+export function seedMockPhotographers(): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (localStorage.getItem(MOCK_SEED_KEY)) return // already seeded
+    const existing = getApprovedProviders()
+    const existingIds = new Set(existing.map((p) => p.id))
+    const toAdd = MOCK_PHOTOGRAPHERS.filter((m) => !existingIds.has(m.id))
+    if (toAdd.length === 0) {
+      localStorage.setItem(MOCK_SEED_KEY, '1')
+      return
+    }
+    saveApprovedProviders([...toAdd, ...existing])
+    localStorage.setItem(MOCK_SEED_KEY, '1')
+  } catch (err) {
+    console.error('Failed to seed mock photographers', err)
+  }
+}
 
 /**
  * Get all verified providers with approved KYC from local storage.
